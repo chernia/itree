@@ -1,0 +1,4 @@
+comment = 'itree hierarchical data type'
+default_version = '1.0'
+module_pathname = '$libdir/itree'
+relocatable = true

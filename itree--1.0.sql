@@ -21,7 +21,8 @@ CREATE TYPE itree (
     OUTPUT = itree_out,
     STORAGE = plain,
     TYPMOD_IN = itree_typmod_in,
-    TYPMOD_OUT = itree_typmod_out
+    TYPMOD_OUT = itree_typmod_out,
+    INTERNALLENGTH = 16
 );
 
 -- Step 4: Define operators and their functions

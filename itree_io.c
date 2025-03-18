@@ -5,54 +5,39 @@
 #include "itree.h"
 
 PG_MODULE_MAGIC;
-
 PG_FUNCTION_INFO_V1(itree_in);
 Datum itree_in(PG_FUNCTION_ARGS) {
     char *input = PG_GETARG_CSTRING(0);
     int32 max_levels = PG_GETARG_INT32(1);
-    itree *result;
-    uint8_t segments[ITREE_MAX_LEVELS] = {0};
+    itree *result;  // Pointer to allocated struct
     int levels = 0;
     char *ptr;
 
     if (max_levels < 1 || max_levels > ITREE_MAX_LEVELS) {
-        elog(LOG, "itree_in: Invalid max_levels %d, using default %d", max_levels,ITREE_MAX_LEVELS);
         max_levels = 15;
     }
-    elog(LOG, "itree_in: Starting with input '%s', max_levels %d", input, max_levels);
 
     if (!input || !*input) {
         ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                         errmsg("itree input cannot be empty or null")));
     }
 
-    result = (itree *)palloc0(ITREE_SIZE);
-    elog(LOG, "itree_in: Allocated result at %p in context %p", result, CurrentMemoryContext);
+    result = (itree *)palloc(ITREE_SIZE);
+    memset(result->data, 0, ITREE_SIZE);  // Zero-initialize
 
     ptr = input;
     while (levels < ITREE_MAX_LEVELS) {
-        long val;
-
-        elog(LOG, "itree_in: Parsing segment at '%s', level %d", ptr, levels);
-        val = atol(ptr);
-        elog(LOG, "itree_in: Parsed value %ld", val);
-
+        long val = atol(ptr);
         if (val < 0 || val > 255) {
             ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                             errmsg("itree segment must be 0–255")));
         }
-        segments[levels++] = (uint8_t)val;
+        result->data[levels++] = (uint8_t)val;
 
         ptr = strchr(ptr, '.');
-        if (!ptr) {
-            elog(LOG, "itree_in: No more dots, breaking");
-            break;
-        }
+        if (!ptr) break;
         ptr++;
-        if (!*ptr) {
-            elog(LOG, "itree_in: Empty after dot, breaking");
-            break;
-        }
+        if (!*ptr) break;
     }
 
     if (levels > max_levels) {
@@ -60,18 +45,13 @@ Datum itree_in(PG_FUNCTION_ARGS) {
                         errmsg("itree exceeds max levels (%d)", max_levels)));
     }
 
-    elog(LOG, "itree_in: Copying %d levels to result", levels);
-    memcpy(result->data, segments, ITREE_SIZE);
-    elog(LOG, "itree_in: Result data [0]=%d, [1]=%d, [2]=%d", 
-         result->data[0], result->data[1], result->data[2]);
-    elog(LOG, "itree_in: Returning result at %p", result);
-
-    PG_RETURN_POINTER(result);
+    PG_RETURN_ITREE(result);  // Return pointer
 }
 
 PG_FUNCTION_INFO_V1(itree_out);
 Datum itree_out(PG_FUNCTION_ARGS) {
-    itree *tree = (itree *)PG_GETARG_POINTER(0);
+    //itree *tree = (itree *)PG_GETARG_POINTER(0);
+    itree *tree = PG_GETARG_ITREE(0);
     char buffer[ITREE_MAX_LEVELS * 4];
     char *result;
     int i, len = 0;
@@ -85,6 +65,25 @@ Datum itree_out(PG_FUNCTION_ARGS) {
     result[len] = '\0';
     PG_RETURN_CSTRING(result);
 }
+
+/**
+ * Compare two itree values for equality.
+ */
+PG_FUNCTION_INFO_V1(itree_eq);
+Datum itree_eq(PG_FUNCTION_ARGS){
+    itree *a = (itree *)PG_GETARG_POINTER(0);
+    itree *b = (itree *)PG_GETARG_POINTER(1);
+    int i;
+
+    for (i = 0; i < ITREE_SIZE; i++) {
+        if (a->data[i] != b->data[i]) {
+            PG_RETURN_BOOL(false);
+        }
+    }
+    PG_RETURN_BOOL(true);
+}
+
+
 
 PG_FUNCTION_INFO_V1(itree_typmod_in);
 Datum itree_typmod_in(PG_FUNCTION_ARGS) {

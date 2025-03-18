@@ -4,12 +4,12 @@
 #include "postgres.h"
 
 typedef struct {
-    uint8_t data[16];  // 128 bits, 8-bit segments
+    uint8_t control[2];  // 16 control bits
+    uint8_t data[14];    // 14 data bytes
 } itree;
 
 #define ITREE_SIZE 16
-#define ITREE_MAX_LEVELS 16
-
+#define ITREE_MAX_LEVELS 14
 /* Function prototypes */
 Datum itree_in(PG_FUNCTION_ARGS);
 Datum itree_out(PG_FUNCTION_ARGS);

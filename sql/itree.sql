@@ -1,44 +1,37 @@
 -- Install the extension
 CREATE EXTENSION itree;
 
+--max level 1 byte segments ok
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14'::itree;
+
+
+-- more then max level ignored
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15'::itree;
+
+-- more then 14 byte storage not allowed
+select '1.2.3.4.5.6.7.8.9.10.11.12.13.14000'::itree;
+
+--last empty segment is ignored
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.'::itree;
+
+--empty internal segment not allowed
+SELECT '1..3'::itree;
+
+--zero segment not allowed
+SELECT '1.2.0'::itree;
+
+--negative segment not allowed
+SELECT '1.2.-3'::itree;
+
+--2 byte segment
+SELECT '1.256'::itree;
+
+
+--TYPMOD
+
+
 -- Test table
 CREATE TABLE test_itree (id itree(14));
-
--- Basic tests
-INSERT INTO test_itree VALUES ('1.2.3.4');
-INSERT INTO test_itree VALUES ('1.2.300.4');
-INSERT INTO test_itree VALUES ('255.65535.0');
-INSERT INTO test_itree VALUES ('1');
-INSERT INTO test_itree VALUES ('1.2');
-
--- Verify output
-SELECT id, id::text FROM test_itree;
-
--- Edge cases
-DO $$
-BEGIN
-    -- Too many segments
-    BEGIN
-        INSERT INTO test_itree VALUES ('1.2.3.4.5.6.7.8.9.10.11.12.13.14.15');
-    EXCEPTION WHEN invalid_text_representation THEN
-        RAISE NOTICE 'Caught expected error: too many segments';
-    END;
-
-    -- Negative segment
-    BEGIN
-        INSERT INTO test_itree VALUES ('1.-2.3');
-    EXCEPTION WHEN invalid_text_representation THEN
-        RAISE NOTICE 'Caught expected error: negative segment';
-    END;
-
-    -- Oversized segment
-    BEGIN
-        INSERT INTO test_itree VALUES ('1.70000.3');
-    EXCEPTION WHEN invalid_text_representation THEN
-        RAISE NOTICE 'Caught expected error: segment too large';
-    END;
-END;
-$$;
 
 -- Cleanup
 DROP TABLE test_itree;

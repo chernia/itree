@@ -6,3 +6,5 @@
 *.dylib
 *.o
 *.so
+regression.diffs
+regression.out

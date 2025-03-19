@@ -5,15 +5,17 @@ CREATE TYPE itree;
 
 -- Step 2: Define the I/O and typmod functions
 CREATE FUNCTION itree_in(cstring) RETURNS itree
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
+    AS 'MODULE_PATHNAME', 'itree_in'
+    LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION itree_out(itree) RETURNS cstring
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION itree_typmod_in(cstring[]) RETURNS int
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
-
---not needed for a simple integer typmod, but later if we add more variables like max segment length
-CREATE FUNCTION itree_typmod_out(int) RETURNS cstring
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
+    AS 'MODULE_PATHNAME', 'itree_out'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_typmod_in(cstring[]) RETURNS int4
+    AS 'MODULE_PATHNAME', 'itree_typmod_in'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_typmod_out(int4) RETURNS cstring
+    AS 'MODULE_PATHNAME', 'itree_typmod_out'
+    LANGUAGE C IMMUTABLE STRICT;
 
 -- Step 3: Complete the type definition
 CREATE TYPE itree (
@@ -27,9 +29,14 @@ CREATE TYPE itree (
 
 -- Step 4: Define operators and their functions
 CREATE FUNCTION itree_is_descendant(itree, itree) RETURNS bool
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
+    AS 'MODULE_PATHNAME', 'itree_is_descendant'
+    LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION itree_is_ancestor(itree, itree) RETURNS bool
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
+    AS 'MODULE_PATHNAME', 'itree_is_ancestor'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_eq(itree, itree) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_eq'
+    LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <@ (
     LEFTARG = itree,
@@ -43,21 +50,20 @@ CREATE OPERATOR @> (
     PROCEDURE = itree_is_ancestor,
     COMMUTATOR = <@
 );
-
---add equality operator to eliminate padding 0s
-CREATE FUNCTION itree_eq(itree, itree) RETURNS bool
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
 CREATE OPERATOR = (
     LEFTARG = itree,
     RIGHTARG = itree,
     PROCEDURE = itree_eq,
     COMMUTATOR = =
 );
+
 -- Step 5: Define GIN support functions
 CREATE FUNCTION itree_extract_value(itree, internal, internal) RETURNS internal
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
+    AS 'MODULE_PATHNAME', 'itree_extract_value'
+    LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION itree_consistent(internal, itree, smallint, int, int, internal) RETURNS bool
-    AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE STRICT;
+    AS 'MODULE_PATHNAME', 'itree_consistent'
+    LANGUAGE C IMMUTABLE STRICT;
 
 -- Step 6: Create the GIN operator class
 CREATE OPERATOR CLASS itree_gin_ops
@@ -65,5 +71,4 @@ CREATE OPERATOR CLASS itree_gin_ops
         OPERATOR 1 <@,
         OPERATOR 2 @>,
         FUNCTION 1 itree_consistent(internal, itree, smallint, int, int, internal),
-        FUNCTION 2 itree_extract_value(itree, internal, internal)
-;
+        FUNCTION 2 itree_extract_value(itree, internal, internal);

@@ -1,33 +1,169 @@
+/**
+ * Operations for the itree type.
+ */
 #include "postgres.h"
 #include "fmgr.h"
 #include "itree.h"
 
-PG_FUNCTION_INFO_V1(itree_is_descendant);
-Datum itree_is_descendant(PG_FUNCTION_ARGS) {
-    itree *child = (itree *)PG_GETARG_POINTER(0);  // Cast from generic pointer
-    itree *parent = (itree *)PG_GETARG_POINTER(1); // Cast from generic pointer
-    int parent_levels = 0;
 
-    while (parent_levels < ITREE_MAX_LEVELS && parent->data[parent_levels]) {
-        parent_levels++;
+
+
+// Helper: Get number of segments and extract them
+int itree_get_segments(itree *tree, uint16_t *segments) {
+    int byte_pos = 0, seg_count = 0;
+
+    memset(segments, 0, ITREE_MAX_LEVELS * sizeof(uint16_t));//just in case the caller has not initialized the array
+
+    while (byte_pos < ITREE_MAX_LEVELS && tree->data[byte_pos] != 0) {
+        bool is_2byte = false;
+        if (byte_pos + 1 < ITREE_MAX_LEVELS) {
+            int shift = (byte_pos + 1 < 8) ? (7 - (byte_pos + 1)) : (15 - (byte_pos + 1));
+            uint8_t control = (byte_pos + 1 < 8) ? tree->control[0] : tree->control[1];
+            is_2byte = !((control >> shift) & 1);
+        }
+
+        if (is_2byte && byte_pos + 1 < ITREE_MAX_LEVELS && tree->data[byte_pos + 1] != 0) {
+            segments[seg_count++] = (tree->data[byte_pos] << 8) | tree->data[byte_pos + 1];
+            byte_pos += 2;
+        } else {
+            segments[seg_count++] = tree->data[byte_pos];
+            byte_pos++;
+        }
     }
-    if (parent_levels == ITREE_MAX_LEVELS) {
-        PG_RETURN_BOOL(false); // Full parent can’t be ancestor
-    }
-    PG_RETURN_BOOL(memcmp(child->data, parent->data, parent_levels) == 0);
+
+    return seg_count;
 }
 
-PG_FUNCTION_INFO_V1(itree_is_ancestor);
-Datum itree_is_ancestor(PG_FUNCTION_ARGS) {
-    itree *parent = (itree *)PG_GETARG_POINTER(0); // Cast from generic pointer
-    itree *child = (itree *)PG_GETARG_POINTER(1);  // Cast from generic pointer
-    int parent_levels = 0;
 
-    while (parent_levels < ITREE_MAX_LEVELS && parent->data[parent_levels]) {
-        parent_levels++;
+ /**
+  * Check if the first itree is a descendant of the second.
+  * child <@ parent
+  */
+ PG_FUNCTION_INFO_V1(itree_is_descendant);
+ Datum itree_is_descendant(PG_FUNCTION_ARGS) {
+     itree *child = PG_GETARG_ITREE(0);
+     itree *parent = PG_GETARG_ITREE(1);
+     uint16_t child_segs[ITREE_MAX_LEVELS] = {0};
+     uint16_t parent_segs[ITREE_MAX_LEVELS] = {0};
+     int child_len = itree_get_segments(child, child_segs);
+     int parent_len = itree_get_segments(parent, parent_segs);
+ 
+     // Child must be longer or equal and match the start of parent's segments
+     if (child_len < parent_len) {
+         PG_RETURN_BOOL(false);
+     }
+ 
+     for (int i = 0; i < parent_len; i++) {
+         if (child_segs[i] != parent_segs[i]) {
+             PG_RETURN_BOOL(false);
+         }
+     }
+ 
+     PG_RETURN_BOOL(true);
+ }
+ 
+ /**
+  * Check if the first itree is an ancestor of the second.
+  * parent @> child
+  */
+ PG_FUNCTION_INFO_V1(itree_is_ancestor);
+ Datum itree_is_ancestor(PG_FUNCTION_ARGS) {
+     itree *parent = PG_GETARG_ITREE(0);
+     itree *child = PG_GETARG_ITREE(1);
+     uint16_t parent_segs[ITREE_MAX_LEVELS] = {0};
+     uint16_t child_segs[ITREE_MAX_LEVELS] = {0};
+     int parent_len = itree_get_segments(parent, parent_segs);
+     int child_len = itree_get_segments(child, child_segs);
+ 
+     // Parent must be shorter or equal and match the start of child's segments
+     if (parent_len > child_len) {
+         PG_RETURN_BOOL(false);
+     }
+ 
+     for (int i = 0; i < parent_len; i++) {
+         if (parent_segs[i] != child_segs[i]) {
+             PG_RETURN_BOOL(false);
+         }
+     }
+ 
+     PG_RETURN_BOOL(true);
+ }
+
+// Compare two itree values: -1 (a < b), 0 (a = b), 1 (a > b)
+static int int_itree_cmp(itree *a, itree *b) {
+    uint16_t a_segs[ITREE_MAX_LEVELS] = {0};
+    uint16_t b_segs[ITREE_MAX_LEVELS] = {0};
+    int a_len = itree_get_segments(a, a_segs);
+    int b_len = itree_get_segments(b, b_segs);
+    int i;
+
+    for (i = 0; i < a_len && i < b_len; i++) {
+        if (a_segs[i] < b_segs[i]) return -1;
+        if (a_segs[i] > b_segs[i]) return 1;
     }
-    if (parent_levels == ITREE_MAX_LEVELS) {
-        PG_RETURN_BOOL(false);
+
+    // If equal up to shorter length, shorter wins
+    if (a_len < b_len) return -1;
+    if (a_len > b_len) return 1;
+    return 0;
+}
+
+ /**
+ * Compare two itree values for equality.
+ * This works with the assumption that the data array is zero-padded.
+ * TODO: rewrite with logical segments: itree_get_segments
+ */
+PG_FUNCTION_INFO_V1(itree_eq);
+Datum itree_eq(PG_FUNCTION_ARGS){
+
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+    int i;
+
+    for (i = 0; i < ITREE_MAX_LEVELS; i++) {
+        if (a->data[i] != b->data[i]) {
+            PG_RETURN_BOOL(false);
+        }
+        if(a->data[i] == 0 && b->data[i] == 0){
+            break;
+        }
     }
-    PG_RETURN_BOOL(memcmp(child->data, parent->data, parent_levels) == 0);
+    
+    PG_RETURN_BOOL(true);
+}
+
+
+PG_FUNCTION_INFO_V1(itree_cmp);
+Datum itree_cmp(PG_FUNCTION_ARGS) {
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+    PG_RETURN_INT32(int_itree_cmp(a, b));
+}
+
+PG_FUNCTION_INFO_V1(itree_lt);
+Datum itree_lt(PG_FUNCTION_ARGS) {
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+    PG_RETURN_BOOL(int_itree_cmp(a, b) < 0);
+}
+
+PG_FUNCTION_INFO_V1(itree_le);
+Datum itree_le(PG_FUNCTION_ARGS) {
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+    PG_RETURN_BOOL(int_itree_cmp(a, b) <= 0);
+}
+
+PG_FUNCTION_INFO_V1(itree_gt);
+Datum itree_gt(PG_FUNCTION_ARGS) {
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+    PG_RETURN_BOOL(int_itree_cmp(a, b) > 0);
+}
+
+PG_FUNCTION_INFO_V1(itree_ge);
+Datum itree_ge(PG_FUNCTION_ARGS) {
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+    PG_RETURN_BOOL(int_itree_cmp(a, b) >= 0);
 }

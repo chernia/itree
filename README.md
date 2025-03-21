@@ -62,14 +62,17 @@ make install
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Attach to PostgreSQL",
+            "name": "Attach to PostgreSQL Backend",
             "type": "cppdbg",
             "request": "attach",
             "program": "/usr/local/pgsql/bin/postgres",
-            "processId": "${command:pickProcess}", // Or hardcode PID like "12345"
+            "processId": "${command:pickProcess}",
             "MIMode": "gdb",
             "setupCommands": [
-                {"text": "-enable-pretty-printing", "ignoreFailures": true}
+                {"text": "-enable-pretty-printing", "ignoreFailures": true},
+                {"text": "sharedlibrary itree"},
+                {"text": "break itree_in"},
+                {"text": "handle SIGSEGV stop print"}
             ]
         }
     ]
@@ -85,6 +88,10 @@ INSERT INTO test4 VALUES ('1.2.3');
 ```
 
 #### GDB
+1. Load itree in the psql session
+`select '1.2.3'::itree;`
+2. Get <backend_pid> with: `select pg_backend_pid();`
+3. Attach GDB 
 ```bash
 gdb /usr/local/pgsql/bin/postgres <backend_pid>
 (gdb) sharedlibrary itree
@@ -92,3 +99,7 @@ gdb /usr/local/pgsql/bin/postgres <backend_pid>
 (gdb) handle SIGSEGV stop print
 (gdb) continue
 ```
+### Test
+- inpsect opclass operators and functions:
+psql \dAc, \dAf, and \dAo
+- sql/itree.sql

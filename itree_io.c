@@ -1,3 +1,20 @@
+/** 
+ * ---------------------------------------------------------------------------------------------------------------------------------
+ * ITREE is a fixed 16 byte hierarchical tree structure that can store up to 14 levels of integers.
+ * It is inspired by the amazing LTREE to serve as a compact ID for hierarchical data structures.
+ * 
+ * Each segment holds a 1 or 2 byte integer value from 1 to a maximum value of 65535.
+ * 
+ * 1. Data Structure:
+ * The fist 2 bytes are control bytes that indicate whether the segment is 1 or 2 bytes long.
+ * The first 3 bits of the first control byte are reserved for future use.
+ * Therefore bits 3 to 15 are set to 1 for each segment that starts a segment and 0 if it is appended to the previous segment.
+ * As value 0 is not allowed, we use it as a sentinel value to indicate the end of the tree on a last segment with 1 control bit.
+ * 
+ * 2.Operations
+ * 3.Use Cases
+ * ---------------------------------------------------------------------------------------------------------------------------------
+ */
 #include "postgres.h"
 #include "fmgr.h"
 #include "utils/array.h"
@@ -11,21 +28,12 @@ PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(itree_in);
 Datum itree_in(PG_FUNCTION_ARGS) {
     char *input = PG_GETARG_CSTRING(0);
-    // int32 typmod = PG_GETARG_INT32(1); this is TypeId, not typmod
-    // int32 typmod = PG_GETARG_INT32(2); //always -1
     itree *result = (itree *)palloc(ITREE_SIZE);
     int levels = 0, byte_pos = 0;
     char *ptr;
-    int32 max_levels = ITREE_MAX_LEVELS;
+    
+    int32 max_levels = ITREE_MAX_LEVELS; //int32 typmod = PG_GETARG_INT32(2) is always -1 despite what typmod_in function returns
 
-/*  int32 max_levels = (typmod >= 0) ? typmod : ITREE_MAX_LEVELS;
-    elog(LOG, "itree_in input = %s, typmod = %d", input, typmod);
- 
-    if (max_levels < 1 || max_levels > ITREE_MAX_LEVELS) {
-        elog(LOG, "itree_in: Invalid max_levels %d, using default 14", max_levels);
-        max_levels = ITREE_MAX_LEVELS;
-    }
- */
     if (!input || !*input) {
         ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                         errmsg("itree input cannot be empty or null")));
@@ -133,6 +141,11 @@ Datum itree_typmod_in(PG_FUNCTION_ARGS) {
     /* Convert cstring to int32 */
     typmod = atoi(DatumGetCString(elems[0]));
 
+    /* Reject values > ITREE_MAX_LEVELS */
+    if (typmod < 0 || typmod > ITREE_MAX_LEVELS)
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                        errmsg("invalid typmod value %d", typmod)));
+
     PG_RETURN_INT32(typmod);
 }
 
@@ -146,22 +159,3 @@ Datum itree_typmod_out(PG_FUNCTION_ARGS) {
     else
         PG_RETURN_CSTRING("");
 }
-
-/**
- * Compare two itree values for equality.
- */
-PG_FUNCTION_INFO_V1(itree_eq);
-Datum itree_eq(PG_FUNCTION_ARGS){
-    itree *a = (itree *)PG_GETARG_POINTER(0);
-    itree *b = (itree *)PG_GETARG_POINTER(1);
-    int i;
-
-    for (i = 0; i < ITREE_SIZE; i++) {
-        if (a->data[i] != b->data[i]) {
-            PG_RETURN_BOOL(false);
-        }
-    }
-    PG_RETURN_BOOL(true);
-}
-
-

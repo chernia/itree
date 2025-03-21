@@ -16,4 +16,7 @@ typedef struct {
 #define PG_RETURN_ITREE(x) PG_RETURN_POINTER(x)
 #define PG_GETARG_ITREE(n) DatumGetITree(PG_GETARG_DATUM(n))
 
+// Helpers
+int itree_get_segments(itree *tree, uint16_t *segments);
+
 #endif

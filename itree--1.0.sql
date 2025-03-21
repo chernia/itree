@@ -27,6 +27,73 @@ CREATE TYPE itree (
     INTERNALLENGTH = 16
 );
 
+-- Step 3: Define btree operators and their functions
+-- Comparison operators
+CREATE FUNCTION itree_lt(itree, itree) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_lt'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_le(itree, itree) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_le'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_eq(itree, itree) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_eq'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_ge(itree, itree) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_ge'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_gt(itree, itree) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_gt'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_cmp(itree, itree) RETURNS int4
+    AS 'MODULE_PATHNAME', 'itree_cmp'
+    LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR < (
+    LEFTARG = itree,
+    RIGHTARG = itree,
+    PROCEDURE = itree_lt,
+    COMMUTATOR = >,
+    NEGATOR = >=
+);
+CREATE OPERATOR <= (
+    LEFTARG = itree,
+    RIGHTARG = itree,
+    PROCEDURE = itree_le,
+    COMMUTATOR = >=,
+    NEGATOR = >
+);
+CREATE OPERATOR = (
+    LEFTARG = itree,
+    RIGHTARG = itree,
+    PROCEDURE = itree_eq,
+    COMMUTATOR = =,
+    NEGATOR = <>
+);
+CREATE OPERATOR >= (
+    LEFTARG = itree,
+    RIGHTARG = itree,
+    PROCEDURE = itree_ge,
+    COMMUTATOR = <=,
+    NEGATOR = <
+);
+CREATE OPERATOR > (
+    LEFTARG = itree,
+    RIGHTARG = itree,
+    PROCEDURE = itree_gt,
+    COMMUTATOR = <,
+    NEGATOR = <=
+);
+
+-- B-tree operator class
+CREATE OPERATOR CLASS itree_btree_ops
+    DEFAULT FOR TYPE itree USING btree AS
+        OPERATOR 1 <,
+        OPERATOR 2 <=,
+        OPERATOR 3 =,
+        OPERATOR 4 >=,
+        OPERATOR 5 >,
+        FUNCTION 1 itree_cmp(itree, itree);
+
 -- Step 4: Define operators and their functions
 CREATE FUNCTION itree_is_descendant(itree, itree) RETURNS bool
     AS 'MODULE_PATHNAME', 'itree_is_descendant'
@@ -34,9 +101,7 @@ CREATE FUNCTION itree_is_descendant(itree, itree) RETURNS bool
 CREATE FUNCTION itree_is_ancestor(itree, itree) RETURNS bool
     AS 'MODULE_PATHNAME', 'itree_is_ancestor'
     LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION itree_eq(itree, itree) RETURNS bool
-    AS 'MODULE_PATHNAME', 'itree_eq'
-    LANGUAGE C IMMUTABLE STRICT;
+
 
 CREATE OPERATOR <@ (
     LEFTARG = itree,
@@ -50,25 +115,31 @@ CREATE OPERATOR @> (
     PROCEDURE = itree_is_ancestor,
     COMMUTATOR = <@
 );
-CREATE OPERATOR = (
-    LEFTARG = itree,
-    RIGHTARG = itree,
-    PROCEDURE = itree_eq,
-    COMMUTATOR = =
-);
 
--- Step 5: Define GIN support functions
+
+-- Step 5: Define GIN support functionsCREATE FUNCTION itree_extract_value(itree, internal, internal) RETURNS internal
 CREATE FUNCTION itree_extract_value(itree, internal, internal) RETURNS internal
     AS 'MODULE_PATHNAME', 'itree_extract_value'
     LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION itree_consistent(internal, itree, smallint, int, int, internal) RETURNS bool
+CREATE FUNCTION itree_consistent(internal, smallint, itree, int, internal, internal, internal, internal) RETURNS bool
     AS 'MODULE_PATHNAME', 'itree_consistent'
     LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_compare_partial(itree, itree, smallint) RETURNS int4
+    AS 'MODULE_PATHNAME', 'itree_compare_partial'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_extract_query(itree, internal, smallint, internal, internal, internal, internal) RETURNS internal
+    AS 'MODULE_PATHNAME', 'itree_extract_query'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_compare(itree, itree) RETURNS int4
+    AS 'MODULE_PATHNAME', 'itree_compare'
+    LANGUAGE C IMMUTABLE STRICT;
 
--- Step 6: Create the GIN operator class
 CREATE OPERATOR CLASS itree_gin_ops
     FOR TYPE itree USING gin AS
         OPERATOR 1 <@,
         OPERATOR 2 @>,
-        FUNCTION 1 itree_consistent(internal, itree, smallint, int, int, internal),
-        FUNCTION 2 itree_extract_value(itree, internal, internal);
+        FUNCTION 1 itree_consistent(internal, smallint, itree, int, internal, internal, internal, internal),
+        FUNCTION 2 itree_extract_value(itree, internal, internal),
+        FUNCTION 3 itree_compare_partial(itree, itree, smallint),
+        FUNCTION 4 itree_extract_query(itree, internal, smallint, internal, internal, internal, internal),
+        FUNCTION 5 itree_compare(itree, itree);

@@ -118,28 +118,30 @@ CREATE OPERATOR @> (
 
 
 -- Step 5: Define GIN support functionsCREATE FUNCTION itree_extract_value(itree, internal, internal) RETURNS internal
-CREATE FUNCTION itree_extract_value(itree, internal, internal) RETURNS internal
+CREATE FUNCTION itree_extract_value(internal, internal, internal) RETURNS internal
     AS 'MODULE_PATHNAME', 'itree_extract_value'
     LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION itree_consistent(internal, smallint, itree, int, internal, internal, internal, internal) RETURNS bool
-    AS 'MODULE_PATHNAME', 'itree_consistent'
-    LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION itree_compare_partial(itree, itree, smallint) RETURNS int4
-    AS 'MODULE_PATHNAME', 'itree_compare_partial'
-    LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION itree_extract_query(itree, internal, smallint, internal, internal, internal, internal) RETURNS internal
+CREATE FUNCTION itree_extract_query(internal, internal, smallint, internal, internal, internal, internal) RETURNS internal
     AS 'MODULE_PATHNAME', 'itree_extract_query'
     LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION itree_compare(itree, itree) RETURNS int4
-    AS 'MODULE_PATHNAME', 'itree_compare'
+CREATE FUNCTION itree_consistent(internal, smallint, internal, int, internal, internal, internal, internal) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_consistent'
     LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR CLASS itree_gin_ops
     FOR TYPE itree USING gin AS
         OPERATOR 1 <@,
         OPERATOR 2 @>,
-        FUNCTION 1 itree_consistent(internal, smallint, itree, int, internal, internal, internal, internal),
-        FUNCTION 2 itree_extract_value(itree, internal, internal),
-        FUNCTION 3 itree_compare_partial(itree, itree, smallint),
-        FUNCTION 4 itree_extract_query(itree, internal, smallint, internal, internal, internal, internal),
-        FUNCTION 5 itree_compare(itree, itree);
+        FUNCTION 2 itree_extract_value(internal, internal, internal),
+        FUNCTION 3 itree_extract_query(internal, internal, smallint, internal, internal, internal, internal),
+        FUNCTION 4 itree_consistent(internal, smallint, internal, int, internal, internal, internal, internal)
+    ;
+/*
+#define GIN_COMPARE_PROC			   1
+#define GIN_EXTRACTVALUE_PROC		   2
+#define GIN_EXTRACTQUERY_PROC		   3
+#define GIN_CONSISTENT_PROC			   4
+#define GIN_COMPARE_PARTIAL_PROC	   5
+#define GIN_TRICONSISTENT_PROC		   6
+#define GIN_OPTIONS_PROC	   7
+*/

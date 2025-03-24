@@ -157,7 +157,7 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
     StrategyNumber strategy = PG_GETARG_UINT16(1);
     itree *query = PG_GETARG_ITREE(2);
     int32 nkeys = PG_GETARG_INT32(3);
-    Pointer *extra_data = (Pointer *)PG_GETARG_POINTER(4);
+    //Pointer *extra_data = (Pointer *)PG_GETARG_POINTER(4);
     bool *recheck = (bool *)PG_GETARG_POINTER(5);
     Datum *queryKeys = (Datum *)PG_GETARG_POINTER(6);
     bool *nullFlags = (bool *)PG_GETARG_POINTER(7);
@@ -217,9 +217,13 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
             break;
         }
     }
-    *extra_data = NULL;
+
     PG_RETURN_BOOL(result);
 }
+
+/******************************************************* 
+ * OPTIONAL SUPPORT FUNCTIONS
+*******************************************************/
 
 /**
  * int comparePartial(Datum partial_key, Datum key, StrategyNumber n, Pointer extra_data)

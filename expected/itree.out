@@ -1,8 +1,7 @@
 -- Drop and recreate extension for a clean slate
 DROP EXTENSION IF EXISTS itree cascade;
+NOTICE:  extension "itree" does not exist, skipping
 CREATE EXTENSION itree;
-
-
 --GIN operators
 SELECT am.amname AS index_method,
        opf.opfname AS opfamily_name,
@@ -12,6 +11,11 @@ SELECT am.amname AS index_method,
     WHERE opf.opfmethod = am.oid AND
           amop.amopfamily = opf.oid and am.amname ='gin' and opf.opfname = 'itree_gin_ops'
     ORDER BY index_method, opfamily_name, opfamily_operator;
+ index_method | opfamily_name | opfamily_operator | amopstrategy 
+--------------+---------------+-------------------+--------------
+ gin          | itree_gin_ops | @>(itree,itree)   |            2
+ gin          | itree_gin_ops | <@(itree,itree)   |            1
+(2 rows)
 
 --GIN support functions
 SELECT
@@ -23,6 +27,12 @@ JOIN pg_proc ON pg_amproc.amproc = pg_proc.oid
 JOIN pg_opfamily ON pg_amproc.amprocfamily = pg_opfamily.oid
 WHERE opfname = 'itree_gin_ops'
 ORDER BY amprocnum;
+    opfname    | amprocnum |       proname       
+---------------+-----------+---------------------
+ itree_gin_ops |         2 | itree_extract_value
+ itree_gin_ops |         3 | itree_extract_query
+ itree_gin_ops |         4 | itree_consistent
+(3 rows)
 
 --BTREE
 --operators
@@ -34,6 +44,14 @@ SELECT am.amname AS index_method,
     WHERE opf.opfmethod = am.oid AND
           amop.amopfamily = opf.oid and am.amname ='btree' and opf.opfname = 'itree_btree_ops'
     ORDER BY index_method, opfamily_name, opfamily_operator;
+ index_method |  opfamily_name  | opfamily_operator | amopstrategy 
+--------------+-----------------+-------------------+--------------
+ btree        | itree_btree_ops | >(itree,itree)    |            5
+ btree        | itree_btree_ops | >=(itree,itree)   |            4
+ btree        | itree_btree_ops | <(itree,itree)    |            1
+ btree        | itree_btree_ops | <=(itree,itree)   |            2
+ btree        | itree_btree_ops | =(itree,itree)    |            3
+(5 rows)
 
 SELECT
     opfname,
@@ -44,39 +62,74 @@ JOIN pg_proc ON pg_amproc.amproc = pg_proc.oid
 JOIN pg_opfamily ON pg_amproc.amprocfamily = pg_opfamily.oid
 WHERE opfname = 'itree_btree_ops'
 ORDER BY amprocnum;
+     opfname     | amprocnum |  proname  
+-----------------+-----------+-----------
+ itree_btree_ops |         1 | itree_cmp
+(1 row)
 
 --max level 1 byte segments ok
 SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14'::itree;
-
+              itree               
+----------------------------------
+ 1.2.3.4.5.6.7.8.9.10.11.12.13.14
+(1 row)
 
 -- more then max level ignored
 SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15'::itree;
+              itree               
+----------------------------------
+ 1.2.3.4.5.6.7.8.9.10.11.12.13.14
+(1 row)
 
 -- more then 14 byte storage not allowed
 select '1.2.3.4.5.6.7.8.9.10.11.12.13.14000'::itree;
-
+ERROR:  itree segment 14000 too large or exceeds space
+LINE 1: select '1.2.3.4.5.6.7.8.9.10.11.12.13.14000'::itree;
+               ^
 --last empty segment is ignored
 SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.'::itree;
+              itree               
+----------------------------------
+ 1.2.3.4.5.6.7.8.9.10.11.12.13.14
+(1 row)
 
 --empty internal segment not allowed
 SELECT '1..3'::itree;
-
+ERROR:  itree segment must be positive (got 0)
+LINE 1: SELECT '1..3'::itree;
+               ^
 --zero segment not allowed
 SELECT '1.2.0'::itree;
-
+ERROR:  itree segment must be positive (got 0)
+LINE 1: SELECT '1.2.0'::itree;
+               ^
 --negative segment not allowed
 SELECT '1.2.-3'::itree;
-
+ERROR:  itree segment must be positive (got -3)
+LINE 1: SELECT '1.2.-3'::itree;
+               ^
 --2 byte segment
 SELECT '1.256'::itree;
+ itree 
+-------
+ 1.1
+(1 row)
 
 -- Test basic type creation and I/O
 SELECT '1.2.3'::itree AS basic_input;
+ basic_input 
+-------------
+ 1.2.3
+(1 row)
+
 -- Expected: 1.2.3
-
 SELECT '300.2'::itree AS two_byte_input;
--- Expected: 300.2
+ two_byte_input 
+----------------
+ 300.2
+(1 row)
 
+-- Expected: 300.2
 -- Test invalid inputs
 DO $$
 BEGIN
@@ -87,8 +140,8 @@ EXCEPTION
         RAISE NOTICE 'Caught expected error: zero segment';
 END;
 $$;
+NOTICE:  Caught expected error: zero segment
 -- Expected: NOTICE: Caught expected error: zero segment
-
 DO $$
 BEGIN
     PERFORM '70000'::itree;  -- Should fail (exceeds 65535)
@@ -98,71 +151,143 @@ EXCEPTION
         RAISE NOTICE 'Caught expected error: exceeds max value';
 END;
 $$;
+NOTICE:  Caught expected error: exceeds max value
 -- Expected: NOTICE: Caught expected error: exceeds max value
-
 -- Test equality operator
 SELECT '1.2'::itree = '1.2'::itree AS eq_true;
+ eq_true 
+---------
+ t
+(1 row)
+
 -- Expected: t
-
 SELECT '1.2'::itree = '1.3'::itree AS eq_false;
--- Expected: f
+ eq_false 
+----------
+ f
+(1 row)
 
+-- Expected: f
 -- Test comparison operators (B-tree support)
 SELECT '1.2'::itree < '1.2.3'::itree AS lt_true;
--- Expected: t
+ lt_true 
+---------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '1.2.3'::itree < '1.2'::itree AS lt_false;
--- Expected: f
+ lt_false 
+----------
+ f
+(1 row)
 
+-- Expected: f
 SELECT '1.2'::itree <= '1.2'::itree AS le_true;
--- Expected: t
+ le_true 
+---------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '1.2.3'::itree <= '1.2'::itree AS le_false;
--- Expected: f
+ le_false 
+----------
+ f
+(1 row)
 
+-- Expected: f
 SELECT '300'::itree > '2'::itree AS gt_true;
--- Expected: t
+ gt_true 
+---------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '2'::itree > '300'::itree AS gt_false;
--- Expected: f
+ gt_false 
+----------
+ f
+(1 row)
 
+-- Expected: f
 SELECT '300'::itree >= '300'::itree AS ge_true;
+ ge_true 
+---------
+ t
+(1 row)
+
 -- Expected: t
-
 SELECT '2'::itree >= '300'::itree AS ge_false;
--- Expected: f
+ ge_false 
+----------
+ f
+(1 row)
 
+-- Expected: f
 -- Test hierarchical operators (GIN support)
 SELECT '1.2.3'::itree <@ '1.2'::itree AS descendant_true;
--- Expected: t
+ descendant_true 
+-----------------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '1.2'::itree <@ '1.2.3'::itree AS descendant_false;
--- Expected: f
+ descendant_false 
+------------------
+ f
+(1 row)
 
+-- Expected: f
 SELECT '1.2'::itree <@ '1.2'::itree AS descendant_equal;
--- Expected: t
+ descendant_equal 
+------------------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '300.2'::itree <@ '300'::itree AS descendant_2byte;
--- Expected: t
+ descendant_2byte 
+------------------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '1.2'::itree @> '1.2.3'::itree AS ancestor_true;
--- Expected: t
+ ancestor_true 
+---------------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '1.2.3'::itree @> '1.2'::itree AS ancestor_false;
+ ancestor_false 
+----------------
+ f
+(1 row)
+
 -- Expected: f
-
 SELECT '1.2'::itree @> '1.2'::itree AS ancestor_equal;
--- Expected: t
+ ancestor_equal 
+----------------
+ t
+(1 row)
 
+-- Expected: t
 SELECT '300'::itree @> '300.2'::itree AS ancestor_2byte;
--- Expected: t
+ ancestor_2byte 
+----------------
+ t
+(1 row)
 
+-- Expected: t
 drop table if exists itree_pk;
+NOTICE:  table "itree_pk" does not exist, skipping
 -- Test B-tree index as primary key
 CREATE TABLE itree_pk (
     id itree PRIMARY KEY
 );
-
 INSERT INTO itree_pk VALUES
     ('1'),
     ('1.2'),
@@ -170,13 +295,21 @@ INSERT INTO itree_pk VALUES
     ('2'),
     ('300'),
     ('300.2');
-
 -- Test uniqueness
 INSERT INTO itree_pk VALUES ('1.2')
 ON CONFLICT DO NOTHING;
 -- Expected: No duplicate inserted
-
 SELECT id FROM itree_pk ORDER BY id;
+  id   
+-------
+ 1
+ 1.2
+ 1.2.3
+ 2
+ 300
+ 300.2
+(6 rows)
+
 -- Expected:
 --  id    
 -- -------
@@ -186,34 +319,48 @@ SELECT id FROM itree_pk ORDER BY id;
 --  2
 --  300
 --  300.2
-
 -- Test exact match
 SELECT id FROM itree_pk WHERE id = '1.2'::itree;
+ id  
+-----
+ 1.2
+(1 row)
+
 -- Expected:
 --  id  
 -- -----
 --  1.2
-
 -- Test range query
 SELECT id FROM itree_pk WHERE id > '1.2'::itree AND id < '300'::itree;
+  id   
+-------
+ 1.2.3
+ 2
+(2 rows)
+
 -- Expected:
 --  id    
 -- -------
 --  1.2.3
 --  2
-
 -- Verify B-tree index usage
 EXPLAIN SELECT id FROM itree_pk WHERE id = '1.2'::itree;
--- Expected: Index Scan using itree_pk_pkey
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Bitmap Heap Scan on itree_pk  (cost=4.39..25.95 rows=925 width=16)
+   Recheck Cond: (id = '1.2'::itree)
+   ->  Bitmap Index Scan on itree_pk_pkey  (cost=0.00..4.16 rows=925 width=0)
+         Index Cond: (id = '1.2'::itree)
+(4 rows)
 
+-- Expected: Index Scan using itree_pk_pkey
 -- Test GIN index
 drop table if exists itree_gin_test;
+NOTICE:  table "itree_gin_test" does not exist, skipping
 CREATE TABLE itree_gin_test (
     id itree
 );
-
 CREATE INDEX itree_gin_idx ON itree_gin_test USING GIN (id itree_gin_ops);
-
 INSERT INTO itree_gin_test VALUES ('1');
 INSERT INTO itree_gin_test VALUES ('1.2');
 INSERT INTO itree_gin_test VALUES ('1.2.3');
@@ -221,38 +368,57 @@ INSERT INTO itree_gin_test VALUES ('2');
 INSERT INTO itree_gin_test VALUES ('2.3');
 INSERT INTO itree_gin_test VALUES ('300');
 INSERT INTO itree_gin_test VALUES ('300.2');
-
 -- Force index usage
 SET enable_seqscan = off;
-
 -- Test descendants
 SELECT id FROM itree_gin_test WHERE id <@ '1.2'::itree;
+  id   
+-------
+ 1.2
+ 1.2.3
+(2 rows)
+
 -- Expected:
 --  id    
 -- -------
 --  1.2
 --  1.2.3
-
 -- Test ancestors
 SELECT id FROM itree_gin_test WHERE id @> '1.2.3'::itree;
+  id   
+-------
+ 1.2.3
+(1 row)
+
 -- Expected:
 --  id    
 -- -------
 --  1
 --  1.2
 --  1.2.3
-
 -- Test 2-byte segment hierarchy
 SELECT id FROM itree_gin_test WHERE id <@ '300'::itree;
+  id   
+-------
+ 300
+ 300.2
+(2 rows)
+
 -- Expected:
 --  id    
 -- -------
 --  300
 --  300.2
-
 -- Verify GIN index usage
 EXPLAIN SELECT id FROM itree_gin_test WHERE id <@ '1.2'::itree;
--- Expected: Bitmap Index Scan on itree_gin_idx
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Bitmap Heap Scan on itree_gin_test  (cost=22.09..43.65 rows=925 width=16)
+   Recheck Cond: (id <@ '1.2'::itree)
+   ->  Bitmap Index Scan on itree_gin_idx  (cost=0.00..21.86 rows=925 width=0)
+         Index Cond: (id <@ '1.2'::itree)
+(4 rows)
 
+-- Expected: Bitmap Index Scan on itree_gin_idx
 -- Reset seqscan
 SET enable_seqscan = on;

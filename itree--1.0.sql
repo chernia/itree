@@ -144,6 +144,21 @@ CREATE FUNCTION itree_consistent(internal, smallint, internal, int, internal, in
     AS 'MODULE_PATHNAME', 'itree_consistent'
     LANGUAGE C IMMUTABLE STRICT;
 
+/* 
+--OPTIONAL FUNCTIONS
+CREATE FUNCTION itree_compare(internal, internal) RETURNS int
+    AS 'MODULE_PATHNAME', 'itree_compare'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_compare_partial(internal, internal, int, internal) RETURNS int
+    AS 'MODULE_PATHNAME', 'itree_compare_partial'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_triconsistent(internal, internal, int, internal) RETURNS bool
+    AS 'MODULE_PATHNAME', 'itree_triconsistent'
+    LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_options(internal) RETURNS internal
+    AS 'MODULE_PATHNAME', 'itree_options'
+    LANGUAGE C IMMUTABLE STRICT;
+ */
 CREATE OPERATOR CLASS itree_gin_ops
     FOR TYPE itree USING gin AS
         OPERATOR 1 <@,

@@ -5,10 +5,9 @@
 #include "fmgr.h"
 #include "itree.h"
 
-
-
-
-// Helper: Get number of segments and extract them
+/**
+ * Get number of segments and extract them
+ */
 int itree_get_segments(itree *tree, uint16_t *segments) {
     int byte_pos = 0, seg_count = 0;
 
@@ -89,7 +88,9 @@ int itree_get_segments(itree *tree, uint16_t *segments) {
      PG_RETURN_BOOL(true);
  }
 
-// Compare two itree values: -1 (a < b), 0 (a = b), 1 (a > b)
+/**
+ * Compare two itree values: -1 (a < b), 0 (a = b), 1 (a > b)
+ */
 static int int_itree_cmp(itree *a, itree *b) {
     uint16_t a_segs[ITREE_MAX_LEVELS] = {0};
     uint16_t b_segs[ITREE_MAX_LEVELS] = {0};

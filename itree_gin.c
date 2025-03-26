@@ -10,12 +10,11 @@
 #define GinEqualStrategy		4
 
 /**
- * FUNCTION 2 itree_extract_value(itree, internal, internal),
+ * FUNCTION 2 itree_extract_value(itree, internal, internal)
+ * 
  * Datum *extractValue(Datum itemValue, int32 *nkeys, bool **nullFlags)
  * Returns a palloc'd array of keys given an item to be indexed. The number of returned keys must be stored into *nkeys. 
- * If any of the keys can be null, also palloc an array of *nkeys bool fields, store its address at *nullFlags, 
- * and set these null flags as needed. *nullFlags can be left NULL (its initial value) if all keys are non-null. 
- * The return value can be NULL if the item contains no keys.
+ * No NULL keys possible, so *nullFlags is left as NULL.
  */
 PG_FUNCTION_INFO_V1(itree_extract_value);
 Datum itree_extract_value(PG_FUNCTION_ARGS) {
@@ -26,9 +25,7 @@ Datum itree_extract_value(PG_FUNCTION_ARGS) {
     int seg_count = itree_get_segments(tree, segments);
     int i, byte_pos;
 
-    elog(LOG, "itree_extract_value: nargs = %d", fcinfo->nargs);
-
-    // Number of subpaths = number of segments (all prefixes)
+    // Number of subpaths = number of segments
     *nkeys = seg_count;
     if (seg_count == 0) {
         PG_RETURN_POINTER(NULL);
@@ -72,7 +69,14 @@ Datum itree_extract_value(PG_FUNCTION_ARGS) {
 
 
 /**
- * Datum *extractQuery(Datum query, int32 *nkeys, StrategyNumber n, bool **pmatch, Pointer **extra_data, bool **nullFlags, int32 *searchMode)
+ * Datum *extractQuery(Datum query, int32 *nkeys, StrategyNumber n, bool **pmatch, 
+ *                      Pointer **extra_data, bool **nullFlags, int32 *searchMode)
+ * Returns a palloc'd array of keys given a value to be queried; that is, 
+ * query is the value on the right-hand side of an indexable operator 
+ * whose left-hand side is the indexed column. 
+ * n is the strategy number of the operator within the operator class.
+ * The number of returned keys must be stored into *nkeys.
+ * No NULL keys possible, so *nullFlags is left as NULL.
  */
 PG_FUNCTION_INFO_V1(itree_extract_query);
 Datum itree_extract_query(PG_FUNCTION_ARGS) {
@@ -88,7 +92,6 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
     int seg_count = itree_get_segments(query, segments);
     int i, byte_pos;
 
-    elog(LOG, "itree_extract_query: nargs = %d", fcinfo->nargs);
 
     switch (strategy) {
         case 1:  // <@ (descendant of query)
@@ -157,23 +160,24 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
     StrategyNumber strategy = PG_GETARG_UINT16(1);
     itree *query = PG_GETARG_ITREE(2);
     int32 nkeys = PG_GETARG_INT32(3);
-    //Pointer *extra_data = (Pointer *)PG_GETARG_POINTER(4);
     bool *recheck = (bool *)PG_GETARG_POINTER(5);
     Datum *queryKeys = (Datum *)PG_GETARG_POINTER(6);
     bool *nullFlags = (bool *)PG_GETARG_POINTER(7);
     bool result = false;
 
-    elog(LOG, "itree_consistent: nargs = %d, strategy = %d, nkeys = %d", fcinfo->nargs, strategy, nkeys);
-    if (fcinfo->nargs != 8) {
-        elog(ERROR, "itree_consistent: expected 8 args, got %d", fcinfo->nargs);
-    }
-    if (recheck == NULL) {
-        elog(ERROR, "itree_consistent: null recheck pointer");
-    }
-
+    
+    /*
+    On success, *recheck should be set to true if the heap tuple needs to be rechecked against the query operator, 
+    or false if the index test is exact. That is:
+        1. a false return value guarantees that the heap tuple does not match the query; 
+        2. a true return value with *recheck set to false guarantees that the heap tuple does match the query; 
+        3. and a true return value with *recheck set to true means that the heap tuple might match the query, 
+        so it needs to be fetched and rechecked by evaluating the query operator directly against the originally indexed item.    
+    */
     *recheck = true;
+
     for (int i = 0; i < nkeys; i++) {
-        if (nullFlags[i]) continue;
+        if (nullFlags[i]) continue; //we should not have null flags
         itree *key = DatumGetITree(queryKeys[i]);
         uint16_t query_segs[ITREE_MAX_LEVELS] = {0};
         uint16_t key_segs[ITREE_MAX_LEVELS] = {0};
@@ -181,7 +185,7 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
         int key_len = itree_get_segments(key, key_segs);
 
         switch (strategy) {
-            case 1:  // <@
+            case 1:  // key <@ query (descendant)
                 if (check[i] && key_len >= query_len) {
                     int j;
                     for (j = 0; j < query_len; j++) {
@@ -193,7 +197,7 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
                     if (key_len == query_len && check[i]) *recheck = false;
                 }
                 break;
-            case 2:  // @>
+            case 2:  // key @> query (ancestor)
                 if (check[i] && key_len <= query_len) {
                     int j;
                     for (j = 0; j < key_len; j++) {
@@ -209,7 +213,6 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
                 elog(ERROR, "itree_consistent: unknown strategy %d", strategy);
         }
     }
-
     
     for (int i = 0; i < nkeys; i++) {
         if (check[i]) {
@@ -224,61 +227,3 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
 /******************************************************* 
  * OPTIONAL SUPPORT FUNCTIONS
 *******************************************************/
-
-/**
- * int comparePartial(Datum partial_key, Datum key, StrategyNumber n, Pointer extra_data)
- */
-PG_FUNCTION_INFO_V1(itree_compare_partial);
-Datum itree_compare_partial(PG_FUNCTION_ARGS) {
-    itree *partial = PG_GETARG_ITREE(0);  // Query partial key
-    itree *key = PG_GETARG_ITREE(1);      // Indexed key
-    StrategyNumber strategy = PG_GETARG_UINT16(2);
-    uint16_t partial_segs[ITREE_MAX_LEVELS] = {0};
-    uint16_t key_segs[ITREE_MAX_LEVELS] = {0};
-    int partial_len = itree_get_segments(partial, partial_segs);
-    int key_len = itree_get_segments(key, key_segs);
-
-    elog(LOG, "itree_compare_partial: nargs = %d", fcinfo->nargs);
-
-    switch (strategy) {
-        case 1:  // <@ (descendant)
-            // If partial is a prefix of key, key could be a descendant
-            if (partial_len > key_len) {
-                PG_RETURN_INT32(1);  // Partial too long, no match
-            }
-            for (int i = 0; i < partial_len; i++) {
-                if (partial_segs[i] < key_segs[i]) return -1;
-                if (partial_segs[i] > key_segs[i]) return 1;
-            }
-            PG_RETURN_INT32(0);  // Possible match
-
-        case 2:  // @> (ancestor)
-            // If key is a prefix of partial, key could be an ancestor
-            if (key_len > partial_len) {
-                PG_RETURN_INT32(1);  // Key too long, no match
-            }
-            for (int i = 0; i < key_len; i++) {
-                if (partial_segs[i] < key_segs[i]) return -1;
-                if (partial_segs[i] > key_segs[i]) return 1;
-            }
-            PG_RETURN_INT32(0);  // Possible match
-
-        default:
-            elog(ERROR, "unknown strategy number: %d", strategy);
-            PG_RETURN_INT32(0);
-    }
-}
-
-
-//tri_consistent
-
-/**
- * void options(local_relopts *relopts)
-
-    Defines a set of user-visible parameters that control operator class behavior.
-
-    The options function is passed a pointer to a local_relopts struct, which needs to be filled with a set of operator class specific options. The options can be accessed from other support functions using the PG_HAS_OPCLASS_OPTIONS() and PG_GET_OPCLASS_OPTIONS() macros.
-
-    Since both key extraction of indexed values and representation of the key in GIN are flexible, they may depend on user-specified parameters.
-
- */

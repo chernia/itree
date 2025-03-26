@@ -61,11 +61,18 @@ RUN cd /usr/src/ \
 4. Build itree
 ```dockerfile
 RUN cd /usr/src/postgres/contrib \
-    git clone https://github.com/chernia/itree.git \
+    && git clone https://github.com/chernia/itree.git \
     && cd itree \
     && make clean && make USE_PGXS=1 && make USE_PGXS=1 install
 ```
 
+5. Optionally cleanup
+```dockerfile
+RUN rm -r /usr/src/postgres \
+    && apt --yes remove --purge git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
+    && apt --yes autoremove  \
+    && apt --yes clean
+```
 # Contributing
 For hacking ITREE you need to build Postgres from source:
 

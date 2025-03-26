@@ -1,12 +1,35 @@
 # Itree 
-`itree` is inspired by the great extension LTREE, but is limited to positive integer segment values.
+`itree` is inspired by the great extension [LTREE](https://www.postgresql.org/docs/current/ltree.html), but is limited to positive integer segment values with a fixed 16 byte storage.
+
+The `itree` complements `ltree` and can serve as an ID of a hierarchical entity, where ltree can serve as a label path.
 ## Features
+This Postgres extension implements a data type `itree` for representing a hierarchical integer tree structure like: `1.1.30.65535`, where each segment is a positive int >= 1 and <= 65535. Some basic operators are provided initially, more can be added as needed.
+
+
+| Operator  | Description                                                       |
+|-----------|-------------------------------------------------------------------|
+| ltree @> ltree → boolean | Is left argument an ancestor of right (or equal)?  |
+| ltree <@ ltree → boolean | Is left argument a descendant of right (or equal)? |
+
 
 ### Data Structure
 Itree uses a fixed length 16 bytes with 2 control and 14 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.
 
-### GIN Index
-IN addition to a btree index, suitable for primary keys. `itree` has support for a GIN index
+Control bits 3-15 of 1 indicate a new segment, while 0 means the byte is added to the previous segment. Segment value `0` is disallowed as it is interpreted as an end of the itree when control bit is 1. 
+
+### Indexes
+- B-tree over itree: <, <=, =, >=, >
+- GIN index over(itree_gin_ops opclass): <, <=, =, >=, > <@, @> 
+
+Example of creating a GIN index:
+```sql
+CREATE TABLE ref_data (id itree. label text, label_path ltree);
+
+CREATE TABLE entity(id uuid, reference_id itree references ref_data(id));
+
+CREATE INDEX itree_gin_idx ON itree_gin_test USING GIN (ref_id itree_gin_ops);
+
+```
 
 # Installation
 ## Dockerfile

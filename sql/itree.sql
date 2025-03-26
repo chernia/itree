@@ -208,25 +208,23 @@ EXPLAIN SELECT id FROM itree_pk WHERE id = '1.2'::itree;
 
 -- Test GIN index
 drop table if exists itree_gin_test;
-CREATE TABLE itree_gin_test (
-    id itree
-);
+CREATE TABLE itree_gin_test (ref_id itree references itree_pk(id));
 
-CREATE INDEX itree_gin_idx ON itree_gin_test USING GIN (id itree_gin_ops);
+CREATE INDEX itree_gin_idx ON itree_gin_test USING GIN (ref_id itree_gin_ops);
 
-INSERT INTO itree_gin_test VALUES ('1');
-INSERT INTO itree_gin_test VALUES ('1.2');
-INSERT INTO itree_gin_test VALUES ('1.2.3');
-INSERT INTO itree_gin_test VALUES ('2');
-INSERT INTO itree_gin_test VALUES ('2.3');
-INSERT INTO itree_gin_test VALUES ('300');
-INSERT INTO itree_gin_test VALUES ('300.2');
+INSERT INTO itree_gin_test VALUES 
+    ('1'),
+    ('1.2'),
+    ('1.2.3'),
+    ('2'),
+    ('300'),
+    ('300.2');
 
 -- Force index usage
 SET enable_seqscan = off;
 
 -- Test descendants
-SELECT id FROM itree_gin_test WHERE id <@ '1.2'::itree;
+SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '1.2'::itree;
 -- Expected:
 --  id    
 -- -------
@@ -234,7 +232,7 @@ SELECT id FROM itree_gin_test WHERE id <@ '1.2'::itree;
 --  1.2.3
 
 -- Test ancestors
-SELECT id FROM itree_gin_test WHERE id @> '1.2.3'::itree;
+SELECT ref_id FROM itree_gin_test WHERE ref_id @> '1.2.3'::itree;
 -- Expected:
 --  id    
 -- -------
@@ -243,7 +241,7 @@ SELECT id FROM itree_gin_test WHERE id @> '1.2.3'::itree;
 --  1.2.3
 
 -- Test 2-byte segment hierarchy
-SELECT id FROM itree_gin_test WHERE id <@ '300'::itree;
+SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '300'::itree;
 -- Expected:
 --  id    
 -- -------
@@ -251,7 +249,7 @@ SELECT id FROM itree_gin_test WHERE id <@ '300'::itree;
 --  300.2
 
 -- Verify GIN index usage
-EXPLAIN SELECT id FROM itree_gin_test WHERE id <@ '1.2'::itree;
+EXPLAIN SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '1.2'::itree;
 -- Expected: Bitmap Index Scan on itree_gin_idx
 
 -- Reset seqscan

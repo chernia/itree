@@ -1,7 +1,50 @@
-# Itree extension install
-## Docker
+# Itree 
+`itree` is inspired by the great extension LTREE, but is limited to positive integer segment values.
+## Features
 
-# Itree Development
+### Data Structure
+Itree uses a fixed length 16 bytes with 2 control and 14 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.
+
+### GIN Index
+IN addition to a btree index, suitable for primary keys. `itree` has support for a GIN index
+
+# Installation
+## Dockerfile
+1. Add ENV
+```dockerfile
+ARG TAG=17
+ENV PG_LIB=postgresql-server-dev-${TAG}
+ENV LANG=en_US.utf8
+ENV LC_ALL=en_US.utf8
+ENV PG_BRANCH=REL_17_STABLE
+```
+2. Install build dependencies
+```dockerfile
+RUN apt --yes update \
+    && apt --yes upgrade \
+    && apt --yes install locales \
+    && echo "en_US.UTF-8 UTF-8" > /etc/locale.gen \
+    && locale-gen en_US.utf8 \
+    && apt --yes install pkg-config git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex libicu-dev $PG_LIB
+``` 
+3. Clone and configure Postgres
+```dockerfile
+RUN cd /usr/src/ \
+    && git clone -b $PG_BRANCH --single-branch https://github.com/postgres/postgres.git \
+    && cd postgres \
+    && ./configure --with-icu 
+```
+
+4. Build itree
+```dockerfile
+RUN cd /usr/src/postgres/contrib \
+    git clone https://github.com/chernia/itree.git \
+    && cd itree \
+    && make clean && make USE_PGXS=1 && make USE_PGXS=1 install
+```
+
+# Contributing
+For hacking ITREE you need to build Postgres from source:
 
 ## Install Postgres
 1. Download Postgres source  
@@ -24,26 +67,24 @@ sudo make install-world-bin
 
 5. Init Postgres  
 For dev purpose the current user will own and run the postgres server.  
-`sudo chown -R user /usr/local/pgsql`
+`sudo chown -R $USER$ /usr/local/pgsql`  
 `initdb -D /usr/local/pgsql/data`
 
-6. Start the server - log to console
+You can add `PGDATA=/usr/local/pgsql/data` to your env.
+
+6. Start the server with log to the console
 `pg_ctl -D /usr/local/pgsql/data start`
 
-7. Login as `user`  
+7. Login as the current user.  
 `psql -d postgres`
-This logs the current user as a postgres superuser.
+You create a new database with the name of the current user and log with only `psql`.
 
 ## ITREE
-1. Checkout itree code
+1. Checkout itree code  
+`cd postgres/contrib/`  
 `git clone https://github.com/chernia/itree.git`
 
-2. Link in contrib  
-`cd postgres/contrib/`  
-`ln -s path_to_itree itree`
-
 3. Compile and install.
-Since we are not using postgres dev libs, but source code compiled distribution owned by the current os user, we don't need sudo. If installing as root add sudo env var, like: `sudo PG_CONFIG=/usr/local/pgsql/bin/pg_config make install`
 
 ```bash
 make clean
@@ -53,8 +94,8 @@ make install
 - restart postgres 
 `pg_ctl -D /usr/local/pgsql/data restart`
 
-### Debug
-#### VSCODE
+## Debug
+### VSCODE
 
 1. .vscode/launch.json
 ```json
@@ -79,19 +120,19 @@ make install
 }
 ```
 
-2. `psql -d postgres`
+2. Get the backend process id of the `psql` session
  ```sql
 CREATE EXTENSION itree;
-CREATE TABLE test4 (id itree(15));
 SELECT pg_backend_pid();
-INSERT INTO test4 VALUES ('1.2.3');
+
 ```
 
-#### GDB
+### Manual GDB
 1. Load itree in the psql session
 `select '1.2.3'::itree;`
 2. Get <backend_pid> with: `select pg_backend_pid();`
 3. Attach GDB 
+4. Add a breakpoint
 ```bash
 gdb /usr/local/pgsql/bin/postgres <backend_pid>
 (gdb) sharedlibrary itree
@@ -100,6 +141,17 @@ gdb /usr/local/pgsql/bin/postgres <backend_pid>
 (gdb) continue
 ```
 ### Test
-- inpsect opclass operators and functions:
-psql \dAc, \dAf, and \dAo
-- sql/itree.sql
+`make installcheck` will run the sdl/itree.sql and compare with expected/itree.out
+
+# License
+Itree is released under the MIT License.
+
+```
+Copyright 2025 Ivan Stoev
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```

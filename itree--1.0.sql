@@ -10,6 +10,9 @@ CREATE FUNCTION itree_in(cstring) RETURNS itree
 CREATE FUNCTION itree_out(itree) RETURNS cstring
     AS 'MODULE_PATHNAME', 'itree_out'
     LANGUAGE C IMMUTABLE STRICT;
+
+-- Typmod is broken in postgresql, for user defined datatypes it is ignored in most statements and -1 is sent
+-- works for create table, but not enforced in any way
 CREATE FUNCTION itree_typmod_in(cstring[]) RETURNS int4
     AS 'MODULE_PATHNAME', 'itree_typmod_in'
     LANGUAGE C IMMUTABLE STRICT;
@@ -117,7 +120,20 @@ CREATE OPERATOR @> (
 );
 
 
--- Step 5: Define GIN support functionsCREATE FUNCTION itree_extract_value(itree, internal, internal) RETURNS internal
+/*
+Step 5: Define GIN support functions
+Get more from : postgres/src/backend/access/gin/ginvalidate.c
+
+From postgres/src/include/access/gin.h:
+Support functions number and signatures:
+#define GIN_COMPARE_PROC			   1
+#define GIN_EXTRACTVALUE_PROC		   2
+#define GIN_EXTRACTQUERY_PROC		   3
+#define GIN_CONSISTENT_PROC			   4
+#define GIN_COMPARE_PARTIAL_PROC	   5
+#define GIN_TRICONSISTENT_PROC		   6
+#define GIN_OPTIONS_PROC	           7
+*/
 CREATE FUNCTION itree_extract_value(internal, internal, internal) RETURNS internal
     AS 'MODULE_PATHNAME', 'itree_extract_value'
     LANGUAGE C IMMUTABLE STRICT;
@@ -136,12 +152,3 @@ CREATE OPERATOR CLASS itree_gin_ops
         FUNCTION 3 itree_extract_query(internal, internal, smallint, internal, internal, internal, internal),
         FUNCTION 4 itree_consistent(internal, smallint, internal, int, internal, internal, internal, internal)
     ;
-/*
-#define GIN_COMPARE_PROC			   1
-#define GIN_EXTRACTVALUE_PROC		   2
-#define GIN_EXTRACTQUERY_PROC		   3
-#define GIN_CONSISTENT_PROC			   4
-#define GIN_COMPARE_PARTIAL_PROC	   5
-#define GIN_TRICONSISTENT_PROC		   6
-#define GIN_OPTIONS_PROC	   7
-*/

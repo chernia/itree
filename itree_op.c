@@ -47,7 +47,7 @@ int itree_get_segments(itree *tree, uint16_t *segments) {
      int child_len = itree_get_segments(child, child_segs);
      int parent_len = itree_get_segments(parent, parent_segs);
  
-     // Child must be longer or equal and match the start of parent's segments
+     // Child must be longer or equal?(like ltree) and match the start of parent's segments
      if (child_len < parent_len) {
          PG_RETURN_BOOL(false);
      }
@@ -74,7 +74,7 @@ int itree_get_segments(itree *tree, uint16_t *segments) {
      int parent_len = itree_get_segments(parent, parent_segs);
      int child_len = itree_get_segments(child, child_segs);
  
-     // Parent must be shorter or equal and match the start of child's segments
+     // Parent must be shorter or equal?(like ltree) and match the start of child's segments
      if (parent_len > child_len) {
          PG_RETURN_BOOL(false);
      }

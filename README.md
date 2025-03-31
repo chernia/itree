@@ -1,4 +1,4 @@
-# Itree 
+# itree 
 `itree` is inspired by the great extension [LTREE](https://www.postgresql.org/docs/current/ltree.html), but is limited to positive integer segment values with a fixed 16 byte storage.
 
 The `itree` complements `ltree` and can serve as an ID of a hierarchical entity, where ltree can serve as a label path.
@@ -13,7 +13,7 @@ This Postgres extension implements a data type `itree` for representing a hierar
 
 
 ### Data Structure
-Itree uses a fixed length 16 bytes with 2 control and 14 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.
+`itree` uses a fixed length 16 bytes with 2 control and 14 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.
 
 Control bits 3-15 of 1 indicate a new segment, while 0 means the byte is added to the previous segment. Segment value `0` is disallowed as it is interpreted as an end of the itree when control bit is 1. 
 
@@ -29,6 +29,19 @@ CREATE TABLE entity(id uuid, reference_id itree references ref_data(id));
 
 CREATE INDEX itree_gin_idx ON itree_gin_test USING GIN (ref_id itree_gin_ops);
 
+```
+### Other
+1. Create an external cast to `ltree`
+```sql
+-- Function with explicit text cast
+CREATE OR REPLACE FUNCTION itree_to_ltree(itree) RETURNS ltree AS $$
+    SELECT itree_out($1)::text::ltree;
+$$ LANGUAGE SQL IMMUTABLE STRICT;
+
+-- Register the cast
+CREATE CAST (itree AS ltree)
+    WITH FUNCTION itree_to_ltree(itree)
+    AS IMPLICIT;
 ```
 
 # Installation
@@ -76,7 +89,7 @@ RUN rm -r /usr/src/postgres \
 # Contributing
 For hacking ITREE you need to build Postgres from source:
 
-## Install Postgres
+## 1.Install Postgres
 1. Download Postgres source  
 `git clone https://github.com/postgres/postgres.git`
 
@@ -109,7 +122,7 @@ You can add `PGDATA=/usr/local/pgsql/data` to your env.
 `psql -d postgres`
 You create a new database with the name of the current user and log with only `psql`.
 
-## ITREE
+## 2.Hacking itree
 1. Checkout itree code  
 `cd postgres/contrib/`  
 `git clone https://github.com/chernia/itree.git`
@@ -124,7 +137,7 @@ make install
 - restart postgres 
 `pg_ctl -D /usr/local/pgsql/data restart`
 
-## Debug
+## 3.Debug
 ### VSCODE
 
 1. .vscode/launch.json

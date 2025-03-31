@@ -69,7 +69,7 @@ Datum itree_extract_value(PG_FUNCTION_ARGS) {
 
 
 /**
- * Datum *extractQuery(Datum query, int32 *nkeys, StrategyNumber n, bool **pmatch, 
+ * FUNCTION 3 Datum *extractQuery(Datum query, int32 *nkeys, StrategyNumber n, bool **pmatch, 
  *                      Pointer **extra_data, bool **nullFlags, int32 *searchMode)
  * Returns a palloc'd array of keys given a value to be queried; that is, 
  * query is the value on the right-hand side of an indexable operator 
@@ -151,8 +151,16 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
 
 
 /**
- * bool consistent(bool check[], StrategyNumber n, Datum query, int32 nkeys, Pointer extra_data[], bool *recheck, Datum queryKeys[], bool nullFlags[])
- * FUNCTION 1 itree_consistent(internal, itree, smallint, int, int, internal),
+ * FUNCTION 4 : bool consistent(bool check[], StrategyNumber n, Datum query, int32 nkeys, Pointer extra_data[], bool *recheck, Datum queryKeys[], bool nullFlags[])
+ * Returns true if an indexed item satisfies the query operator with strategy number n (or might satisfy it, if the recheck indication is returned). 
+ * This function does not have direct access to the indexed item's value, since GIN does not store items explicitly. 
+ * Rather, what is available is knowledge about which key values extracted from the query appear in a given indexed item.
+ * The check array has length nkeys, which is the same as the number of keys previously returned by extractQuery for this query datum. 
+ * Each element of the check array is true if the indexed item contains the corresponding query key, i.e., 
+ * if (check[i] == true) the i-th key of the extractQuery result array is present in the indexed item. 
+ * The original query datum is passed in case the consistent method needs to consult it, and so are the queryKeys[]
+ * - no nullFlags possible, so nullFlags[] is left as NULL. 
+ * 
  */
 PG_FUNCTION_INFO_V1(itree_consistent);
 Datum itree_consistent(PG_FUNCTION_ARGS) {
@@ -162,9 +170,8 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
     int32 nkeys = PG_GETARG_INT32(3);
     bool *recheck = (bool *)PG_GETARG_POINTER(5);
     Datum *queryKeys = (Datum *)PG_GETARG_POINTER(6);
-    bool *nullFlags = (bool *)PG_GETARG_POINTER(7);
+    // bool *nullFlags = (bool *)PG_GETARG_POINTER(7);
     bool result = false;
-
     
     /*
     On success, *recheck should be set to true if the heap tuple needs to be rechecked against the query operator, 
@@ -177,7 +184,7 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
     *recheck = true;
 
     for (int i = 0; i < nkeys; i++) {
-        if (nullFlags[i]) continue; //we should not have null flags
+        //if (nullFlags[i]) continue; //we should not have null flags
         itree *key = DatumGetITree(queryKeys[i]);
         uint16_t query_segs[ITREE_MAX_LEVELS] = {0};
         uint16_t key_segs[ITREE_MAX_LEVELS] = {0};
@@ -185,10 +192,9 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
         int key_len = itree_get_segments(key, key_segs);
 
         switch (strategy) {
-            case 1:  // key <@ query (descendant)
+            case 1:  // key <@ query (descendant or equal)
                 if (check[i] && key_len >= query_len) {
-                    int j;
-                    for (j = 0; j < query_len; j++) {
+                    for ( int j = 0; j < query_len; j++) {
                         if (key_segs[j] != query_segs[j]) {
                             check[i] = false;
                             break;
@@ -197,10 +203,9 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
                     if (key_len == query_len && check[i]) *recheck = false;
                 }
                 break;
-            case 2:  // key @> query (ancestor)
+            case 2:  // key @> query (ancestor or equal)
                 if (check[i] && key_len <= query_len) {
-                    int j;
-                    for (j = 0; j < key_len; j++) {
+                    for (int j = 0; j < key_len; j++) {
                         if (key_segs[j] != query_segs[j]) {
                             check[i] = false;
                             break;
@@ -224,6 +229,19 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
     PG_RETURN_BOOL(result);
 }
 
+/**
+ * GinTernaryValue triConsistent(GinTernaryValue check[], StrategyNumber n, Datum query, int32 nkeys, Pointer extra_data[], Datum queryKeys[], bool nullFlags[])
+ * 
+ * triConsistent is similar to consistent, but instead of Booleans in the check vector, there are three possible values for each key: GIN_TRUE, GIN_FALSE and GIN_MAYBE. 
+ * GIN_FALSE and GIN_TRUE have the same meaning as regular Boolean values, while GIN_MAYBE means that the presence of that key is not known. 
+ * When GIN_MAYBE values are present, the function should only return GIN_TRUE if the item certainly matches whether or not the index item contains the corresponding query keys. 
+ * Likewise, the function must return GIN_FALSE only if the item certainly does not match, whether or not it contains the GIN_MAYBE keys. 
+ * If the result depends on the GIN_MAYBE entries, i.e., the match cannot be confirmed or refuted based on the known query keys, the function must return GIN_MAYBE.
+ * When there are no GIN_MAYBE values in the check vector, a GIN_MAYBE return value is the equivalent of setting the recheck flag in the Boolean consistent function.
+ */
+
+
 /******************************************************* 
  * OPTIONAL SUPPORT FUNCTIONS
 *******************************************************/
+

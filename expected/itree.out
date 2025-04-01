@@ -282,6 +282,20 @@ SELECT '300'::itree @> '300.2'::itree AS ancestor_2byte;
 (1 row)
 
 -- Expected: t
+SELECT ilevel('1.2.3'::itree) AS level_3;
+ level_3 
+---------
+       3
+(1 row)
+
+-- Expected: 3
+SELECT '1.2.3'::itree || '4.5.6'::itree AS concat_result;
+ concat_result 
+---------------
+ 1.2.3.4.5.6
+(1 row)
+
+-- Expected: 1.2.3.4.5.6
 drop table if exists itree_pk;
 NOTICE:  table "itree_pk" does not exist, skipping
 -- Test B-tree index as primary key

@@ -5,12 +5,17 @@ The `itree` complements `ltree` and can serve as an ID of a hierarchical entity,
 ## Features
 This Postgres extension implements a data type `itree` for representing a hierarchical integer tree structure like: `1.1.30.65535`, where each segment is a positive int >= 1 and <= 65535. Some basic operators are provided initially, more can be added as needed.
 
-
+### Operators
 | Operator  | Description                                                       |
 |-----------|-------------------------------------------------------------------|
-| ltree @> ltree → boolean | Is left argument an ancestor of right (or equal)?  |
-| ltree <@ ltree → boolean | Is left argument a descendant of right (or equal)? |
+| itree @> itree → boolean | Is left argument an ancestor of right (or equal as ltree)  |
+| itree <@ itree → boolean | Is left argument a descendant of right (or equal as ltree) |
+| itree \|\| itree -> itree  | concatenate 2 itree values|
 
+### Functions
+| Function                    | Description              | Example               |
+|-----------------------------|--------------------------|-----------------------|
+| ilevel(itree) -> integer    | number of levels         | ilevel('1.2.3') -> 3  |
 
 ### Data Structure
 `itree` uses a fixed length 16 bytes with 2 control and 14 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.

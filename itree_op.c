@@ -3,7 +3,9 @@
  */
 #include "postgres.h"
 #include "fmgr.h"
+#include "utils/builtins.h"
 #include "itree.h"
+
 
 /**
  * Get number of segments and extract them
@@ -32,7 +34,6 @@ int itree_get_segments(itree *tree, uint16_t *segments) {
 
     return seg_count;
 }
-
 
  /**
   * Check if the first itree is a descendant of the second.
@@ -168,3 +169,56 @@ Datum itree_ge(PG_FUNCTION_ARGS) {
     itree *b = PG_GETARG_ITREE(1);
     PG_RETURN_BOOL(int_itree_cmp(a, b) >= 0);
 }
+
+PG_FUNCTION_INFO_V1(ilevel);
+Datum ilevel(PG_FUNCTION_ARGS) {
+    itree *tree = PG_GETARG_ITREE(0);
+    uint16_t segments[ITREE_MAX_LEVELS] = {0};
+    int seg_count = itree_get_segments(tree, segments);
+    PG_RETURN_INT32(seg_count);
+}
+
+/**
+ * Concatenate two itree values.
+ * This function assumes that the two itrees are valid and do not exceed the maximum levels.
+ * It creates a new itree by concatenating the segments of both itrees.
+ * TODO: check for overflow and max levels
+ * TODO: rewrite with logical segments: itree_get_segments to avoid going through itree_out
+ */
+PG_FUNCTION_INFO_V1(itree_additree);
+Datum itree_additree(PG_FUNCTION_ARGS) {
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+
+    // Convert itree to cstring
+    char *a_cstr = DatumGetCString(DirectFunctionCall1(itree_out, PointerGetDatum(a)));
+    char *b_cstr = DatumGetCString(DirectFunctionCall1(itree_out, PointerGetDatum(b)));
+
+    // Concatenate the two strings with a dot separator
+    StringInfoData buf;
+    initStringInfo(&buf);
+    appendStringInfoString(&buf, a_cstr); // Append the first itree as a string
+    appendStringInfoChar(&buf, '.');     // Append the dot separator
+    appendStringInfoString(&buf, b_cstr); // Append the second itree as a string
+
+    // Convert the concatenated string back to itree
+    itree *result = (itree *) DatumGetPointer(DirectFunctionCall1(itree_in, CStringGetDatum(buf.data)));
+
+    // Free temporary memory
+    pfree(a_cstr);
+    pfree(b_cstr);
+    pfree(buf.data);
+
+    PG_FREE_IF_COPY(a, 0);
+    PG_FREE_IF_COPY(b, 1);
+
+    PG_RETURN_ITREE(result);
+}
+
+/* PG_FUNCTION_INFO_V1(itree_addint);
+Datum itree_addint(PG_FUNCTION_ARGS);
+
+
+PG_FUNCTION_INFO_V1(itree_intadd);
+Datum itree_intadd(PG_FUNCTION_ARGS);
+ */

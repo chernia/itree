@@ -167,3 +167,35 @@ CREATE OPERATOR CLASS itree_gin_ops
         FUNCTION 3 itree_extract_query(internal, internal, smallint, internal, internal, internal, internal),
         FUNCTION 4 itree_consistent(internal, smallint, internal, int, internal, internal, internal, internal)
     ;
+
+/**
+Util functions
+*/
+-- return number of levels in the tree
+CREATE FUNCTION ilevel(itree)
+RETURNS int4
+AS 'MODULE_PATHNAME', 'ilevel'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION itree_additree(itree,itree)
+RETURNS itree
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE OPERATOR || (
+        LEFTARG = itree,
+	RIGHTARG = itree,
+	PROCEDURE = itree_additree
+);
+
+
+/* CREATE FUNCTION itree_addint(itree,text)
+RETURNS itree
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION itree_intadd(text,itree)
+RETURNS itree
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+ */

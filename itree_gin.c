@@ -91,7 +91,7 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
 
     switch (strategy) {
         case 1:  // <@ value is a descendant of query or equal to it
-            // value should contain the the full query path
+            // value should contain the full query path
             *nkeys = 1;
             keys = (Datum *)palloc(sizeof(Datum));
             keys[0] = PointerGetDatum(query);  // Use query as-is
@@ -143,7 +143,6 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
     PG_RETURN_POINTER(keys);
 }
 
-
 /**
  * FUNCTION 4 : bool consistent(bool check[], StrategyNumber n, Datum query, int32 nkeys, Pointer extra_data[], bool *recheck, Datum queryKeys[], bool nullFlags[])
  * Returns true if an indexed item satisfies the query operator with strategy number n (or might satisfy it, if the recheck indication is returned). 
@@ -158,12 +157,12 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
  */
 PG_FUNCTION_INFO_V1(itree_consistent);
 Datum itree_consistent(PG_FUNCTION_ARGS) {
-    bool *check = (bool *)PG_GETARG_POINTER(0);
-    StrategyNumber strategy = PG_GETARG_UINT16(1);
-    itree *query = PG_GETARG_ITREE(2);
+    bool *check = (bool *)PG_GETARG_POINTER(0);//array is already populated by the GIN index and indicates which query keys match the indexed item.
+    //StrategyNumber strategy = PG_GETARG_UINT16(1);
+    //itree *query = PG_GETARG_ITREE(2);
     int32 nkeys = PG_GETARG_INT32(3);
     bool *recheck = (bool *)PG_GETARG_POINTER(5);
-    Datum *queryKeys = (Datum *)PG_GETARG_POINTER(6);
+    //Datum *queryKeys = (Datum *)PG_GETARG_POINTER(6);
     // bool *nullFlags = (bool *)PG_GETARG_POINTER(7);
     bool result = false;
     
@@ -174,45 +173,10 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
         2. a true return value with *recheck set to false guarantees that the heap tuple does match the query; 
         3. and a true return value with *recheck set to true means that the heap tuple might match the query, 
         so it needs to be fetched and rechecked by evaluating the query operator directly against the originally indexed item.    
-    */
-    *recheck = true;
+    */ 
+    *recheck = false; // Default to no recheck needed
 
-    for (int i = 0; i < nkeys; i++) {
-        //if (nullFlags[i]) continue; //we should not have null flags
-        itree *key = DatumGetITree(queryKeys[i]);
-        uint16_t query_segs[ITREE_MAX_LEVELS] = {0};
-        uint16_t key_segs[ITREE_MAX_LEVELS] = {0};
-        int query_len = itree_get_segments(query, query_segs);
-        int key_len = itree_get_segments(key, key_segs);
-
-        switch (strategy) {
-            case 1:  // key <@ query (descendant or equal)
-                if (check[i] && key_len >= query_len) {
-                    for ( int j = 0; j < query_len; j++) {
-                        if (key_segs[j] != query_segs[j]) {
-                            check[i] = false;
-                            break;
-                        }
-                    }
-                    if (key_len == query_len && check[i]) *recheck = false;
-                }
-                break;
-            case 2:  // key @> query (ancestor or equal)
-                if (check[i] && key_len <= query_len) {
-                    for (int j = 0; j < key_len; j++) {
-                        if (key_segs[j] != query_segs[j]) {
-                            check[i] = false;
-                            break;
-                        }
-                    }
-                    if (key_len == query_len && check[i]) *recheck = false;
-                }
-                break;
-            default:
-                elog(ERROR, "itree_consistent: unknown strategy %d", strategy);
-        }
-    }
-    
+    // If any key in check[] is true, the query matches
     for (int i = 0; i < nkeys; i++) {
         if (check[i]) {
             result = true;

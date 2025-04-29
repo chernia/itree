@@ -28,6 +28,18 @@ PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(itree_in);
 Datum itree_in(PG_FUNCTION_ARGS) {
     char *input = PG_GETARG_CSTRING(0);
+
+    // Handle the special case where the input is "NULL"
+    //it seems we can not just return NULL
+    if (input != NULL && strcmp(input, "NULL") == 0) {
+        // Return a special "empty" itree value to represent NULL
+        itree *result = (itree *)palloc(ITREE_SIZE);
+        result->control[0] = 0xFF;
+        result->control[1] = 0xFF;
+        memset(result->data, 0, sizeof(result->data));
+        PG_RETURN_POINTER(result);
+    }
+    
     itree *result = (itree *)palloc(ITREE_SIZE);
     int levels = 0, byte_pos = 0;
     char *ptr;
@@ -36,7 +48,7 @@ Datum itree_in(PG_FUNCTION_ARGS) {
 
     if (!input || !*input) {
         ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                        errmsg("itree input cannot be empty or null")));
+                        errmsg("itree input cannot be empty")));
     }
 
     result->control[0] = 0xFF;
@@ -87,6 +99,11 @@ Datum itree_in(PG_FUNCTION_ARGS) {
 /** Convert an itree Datum to cstring */
 PG_FUNCTION_INFO_V1(itree_out);
 Datum itree_out(PG_FUNCTION_ARGS) {
+     // Check for NULL input
+    if (PG_ARGISNULL(0)) {
+        PG_RETURN_CSTRING(pstrdup("NULL"));
+    }
+
     itree *tree = PG_GETARG_ITREE(0);
     char buffer[ITREE_MAX_LEVELS * 6];
     char *result;

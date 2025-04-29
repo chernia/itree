@@ -45,6 +45,10 @@ JOIN pg_opfamily ON pg_amproc.amprocfamily = pg_opfamily.oid
 WHERE opfname = 'itree_btree_ops'
 ORDER BY amprocnum;
 
+-- Test itree_out with NULL
+SELECT NULL::itree::text; 
+-- Expected: NULL
+
 --max level 1 byte segments ok
 SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14'::itree;
 

@@ -399,8 +399,10 @@ SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '1.2'::itree;
 SELECT ref_id FROM itree_gin_test WHERE ref_id @> '1.2.3'::itree;
  ref_id 
 --------
+ 1
+ 1.2
  1.2.3
-(1 row)
+(3 rows)
 
 -- Expected:
 --  id    
@@ -425,9 +427,9 @@ SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '300'::itree;
 EXPLAIN SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '1.2'::itree;
                                   QUERY PLAN                                   
 -------------------------------------------------------------------------------
- Bitmap Heap Scan on itree_gin_test  (cost=22.09..43.65 rows=925 width=16)
+ Bitmap Heap Scan on itree_gin_test  (cost=17.66..39.22 rows=925 width=16)
    Recheck Cond: (ref_id <@ '1.2'::itree)
-   ->  Bitmap Index Scan on itree_gin_idx  (cost=0.00..21.86 rows=925 width=0)
+   ->  Bitmap Index Scan on itree_gin_idx  (cost=0.00..17.43 rows=925 width=0)
          Index Cond: (ref_id <@ '1.2'::itree)
 (4 rows)
 

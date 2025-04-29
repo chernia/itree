@@ -4,10 +4,6 @@
 #include "access/stratnum.h" // For StrategyNumber
 #include "itree.h"
 
-#define GinOverlapStrategy		1
-#define GinContainsStrategy		2
-#define GinContainedStrategy	3
-#define GinEqualStrategy		4
 
 /**
  * FUNCTION 2 itree_extract_value(itree, internal, internal)
@@ -94,8 +90,14 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
 
 
     switch (strategy) {
-        case 1:  // <@ (descendant of query)
-            // Extract all prefixes of query (like extract_value)
+        case 1:  // <@ value is a descendant of query or equal to it
+            // value should contain the the full query path
+            *nkeys = 1;
+            keys = (Datum *)palloc(sizeof(Datum));
+            keys[0] = PointerGetDatum(query);  // Use query as-is
+            *searchMode = GIN_SEARCH_MODE_DEFAULT;
+            break;
+        case 2:  // @> (ancestor of query)
             *nkeys = seg_count;
             if (seg_count == 0) {
                 *searchMode = GIN_SEARCH_MODE_DEFAULT;
@@ -125,14 +127,6 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
                 }
                 keys[i] = PointerGetDatum(subpath);
             }
-            *searchMode = GIN_SEARCH_MODE_DEFAULT;
-            break;
-
-        case 2:  // @> (ancestor of query)
-            // Only need the full query path
-            *nkeys = 1;
-            keys = (Datum *)palloc(sizeof(Datum));
-            keys[0] = PointerGetDatum(query);  // Use query as-is
             *searchMode = GIN_SEARCH_MODE_DEFAULT;
             break;
 

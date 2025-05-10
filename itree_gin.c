@@ -9,13 +9,27 @@
  * FUNCTION 2 itree_extract_value(itree, internal, internal)
  * 
  * Datum *extractValue(Datum itemValue, int32 *nkeys, bool **nullFlags)
- * Returns a palloc'd array of keys given an item to be indexed. The number of returned keys must be stored into *nkeys. 
- * No NULL keys possible, so *nullFlags is left as NULL.
+     * Returns a palloc'd array of keys given an item to be indexed. 
+ * The number of returned keys must be stored into *nkeys. 
+ * If any of the keys can be null, also palloc an array of *nkeys bool fields, 
+ * store its address at *nullFlags, and set these null flags as needed. 
+ * *nullFlags can be left NULL (its initial value) if all keys are non-null. 
+ * The return value can be NULL if the item contains no keys.
+ * 
  */
 PG_FUNCTION_INFO_V1(itree_extract_value);
 Datum itree_extract_value(PG_FUNCTION_ARGS) {
     itree *tree = PG_GETARG_ITREE(0);
     int32 *nkeys = (int32 *)PG_GETARG_POINTER(1);
+    bool **nullFlags = (bool **)PG_GETARG_POINTER(2);
+
+    // Handle NULL value
+    if (tree == NULL) {
+        *nkeys = 0;
+        *nullFlags = NULL;
+        PG_RETURN_POINTER(NULL);
+    }
+
     Datum *keys = NULL;
     uint16_t segments[ITREE_MAX_LEVELS] = {0};
     int seg_count = itree_get_segments(tree, segments);
@@ -72,7 +86,12 @@ Datum itree_extract_value(PG_FUNCTION_ARGS) {
  * whose left-hand side is the indexed column. 
  * n is the strategy number of the operator within the operator class.
  * The number of returned keys must be stored into *nkeys.
- * No NULL keys possible, so *nullFlags is left as NULL.
+ * 
+ * If any of the keys can be null, also palloc an array of *nkeys bool fields, 
+ * store its address at *nullFlags, and set these null flags as needed. 
+ * *nullFlags can be left NULL (its initial value) if all keys are non-null. 
+ * The return value can be NULL if the query contains no keys.
+ *
  */
 PG_FUNCTION_INFO_V1(itree_extract_query);
 Datum itree_extract_query(PG_FUNCTION_ARGS) {
@@ -83,6 +102,17 @@ Datum itree_extract_query(PG_FUNCTION_ARGS) {
     Pointer **extra_data = (Pointer **)PG_GETARG_POINTER(4);
     bool **nullFlags = (bool **)PG_GETARG_POINTER(5);
     int32 *searchMode = (int32 *)PG_GETARG_POINTER(6);
+
+    // Handle NULL query
+    if (query == NULL) {
+        *nkeys = 0;
+        *pmatch = NULL;
+        *extra_data = NULL;
+        *nullFlags = NULL;
+        *searchMode = GIN_SEARCH_MODE_DEFAULT;
+        PG_RETURN_POINTER(NULL);
+    }
+
     Datum *keys = NULL;
     uint16_t segments[ITREE_MAX_LEVELS] = {0};
     int seg_count = itree_get_segments(query, segments);
@@ -159,12 +189,11 @@ PG_FUNCTION_INFO_V1(itree_consistent);
 Datum itree_consistent(PG_FUNCTION_ARGS) {
     bool *check = (bool *)PG_GETARG_POINTER(0);//array is already populated by the GIN index and indicates which query keys match the indexed item.
     //StrategyNumber strategy = PG_GETARG_UINT16(1);
-    //itree *query = PG_GETARG_ITREE(2);
+    itree *query = PG_GETARG_ITREE(2);
     int32 nkeys = PG_GETARG_INT32(3);
     bool *recheck = (bool *)PG_GETARG_POINTER(5);
     //Datum *queryKeys = (Datum *)PG_GETARG_POINTER(6);
     // bool *nullFlags = (bool *)PG_GETARG_POINTER(7);
-    bool result = false;
     
     /*
     On success, *recheck should be set to true if the heap tuple needs to be rechecked against the query operator, 
@@ -174,17 +203,19 @@ Datum itree_consistent(PG_FUNCTION_ARGS) {
         3. and a true return value with *recheck set to true means that the heap tuple might match the query, 
         so it needs to be fetched and rechecked by evaluating the query operator directly against the originally indexed item.    
     */ 
-    *recheck = false; // Default to no recheck needed
+    // Handle NULL query
+    if (query == NULL) {
+        PG_RETURN_NULL();
+    }
 
-    // If any key in check[] is true, the query matches
+    *recheck = false; // Default to no recheck needed for @> and <@ any key matched should mean a match
     for (int i = 0; i < nkeys; i++) {
         if (check[i]) {
-            result = true;
-            break;
+            PG_RETURN_BOOL(true);
         }
     }
 
-    PG_RETURN_BOOL(result);
+    PG_RETURN_BOOL(false);
 }
 
 /**

@@ -68,9 +68,9 @@ ORDER BY amprocnum;
 (1 row)
 
 -- Test itree_out with NULL
-SELECT NULL::itree::text; 
- text 
-------
+SELECT NULL::itree; 
+ itree 
+-------
  
 (1 row)
 
@@ -387,7 +387,9 @@ INSERT INTO itree_gin_test VALUES
     ('1.2.3'),
     ('2'),
     ('300'),
-    ('300.2');
+    ('300.2'),
+    (null)
+    ;
 -- Force index usage
 SET enable_seqscan = off;
 -- Test descendants
@@ -431,6 +433,19 @@ SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '300'::itree;
 -- -------
 --  300
 --  300.2
+--Query is NULL
+SELECT * FROM itree_gin_test WHERE ref_id @> NULL::itree;
+ ref_id 
+--------
+(0 rows)
+
+-- Expected: No rows
+SELECT * FROM itree_gin_test WHERE ref_id <@ NULL::itree;
+ ref_id 
+--------
+(0 rows)
+
+-- Expected: No rows
 -- Verify GIN index usage
 EXPLAIN SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '1.2'::itree;
                                   QUERY PLAN                                   

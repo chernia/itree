@@ -30,27 +30,18 @@ Datum itree_in(PG_FUNCTION_ARGS) {
     char *input = PG_GETARG_CSTRING(0);
 
     // Handle the special case where the input is "NULL"
-    //it seems we can not just return NULL
-    if (input != NULL && strcmp(input, "NULL") == 0) {
-        // Return a special "empty" itree value to represent NULL
-        itree *result = (itree *)palloc(ITREE_SIZE);
-        result->control[0] = 0xFF;
-        result->control[1] = 0xFF;
-        memset(result->data, 0, sizeof(result->data));
-        PG_RETURN_POINTER(result);
+    if (input == NULL || strcmp(input, "NULL") == 0 ||!input || !*input) {
+        ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+                        errmsg("invalid input syntax for itree: \"%s\"", input)));
     }
-    
+
     itree *result = (itree *)palloc(ITREE_SIZE);
     int levels = 0, byte_pos = 0;
     char *ptr;
     
     int32 max_levels = ITREE_MAX_LEVELS; //int32 typmod = PG_GETARG_INT32(2) is always -1 despite what typmod_in function returns
 
-    if (!input || !*input) {
-        ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                        errmsg("itree input cannot be empty")));
-    }
-
+    
     result->control[0] = 0xFF;
     result->control[1] = 0xFF;
     memset(result->data, 0, sizeof(result->data));

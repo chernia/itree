@@ -46,7 +46,7 @@ WHERE opfname = 'itree_btree_ops'
 ORDER BY amprocnum;
 
 -- Test itree_out with NULL
-SELECT NULL::itree::text; 
+SELECT NULL::itree; 
 -- Expected: NULL
 
 --max level 1 byte segments ok
@@ -228,7 +228,9 @@ INSERT INTO itree_gin_test VALUES
     ('1.2.3'),
     ('2'),
     ('300'),
-    ('300.2');
+    ('300.2'),
+    (null)
+    ;
 
 -- Force index usage
 SET enable_seqscan = off;
@@ -257,6 +259,13 @@ SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '300'::itree;
 -- -------
 --  300
 --  300.2
+
+--Query is NULL
+SELECT * FROM itree_gin_test WHERE ref_id @> NULL::itree;
+-- Expected: No rows
+
+SELECT * FROM itree_gin_test WHERE ref_id <@ NULL::itree;
+-- Expected: No rows
 
 -- Verify GIN index usage
 EXPLAIN SELECT ref_id FROM itree_gin_test WHERE ref_id <@ '1.2'::itree;

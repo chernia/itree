@@ -113,7 +113,6 @@ static int int_itree_cmp(itree *a, itree *b) {
  /**
  * Compare two itree values for equality.
  * This works with the assumption that the data array is zero-padded.
- * TODO: rewrite with logical segments: itree_get_segments
  */
 PG_FUNCTION_INFO_V1(itree_eq);
 Datum itree_eq(PG_FUNCTION_ARGS){
@@ -122,16 +121,12 @@ Datum itree_eq(PG_FUNCTION_ARGS){
     itree *b = PG_GETARG_ITREE(1);
     int i;
 
-    for (i = 0; i < ITREE_MAX_LEVELS; i++) {
-        if (a->data[i] != b->data[i]) {
-            PG_RETURN_BOOL(false);
-        }
-        if(a->data[i] == 0 && b->data[i] == 0){
-            break;
-        }
+    // Compare the entire itree structures (data + control)
+    if (memcmp(a, b, sizeof(itree)) == 0) {
+        PG_RETURN_BOOL(true);
+    } else {
+        PG_RETURN_BOOL(false);
     }
-    
-    PG_RETURN_BOOL(true);
 }
 
 

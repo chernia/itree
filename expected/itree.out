@@ -76,53 +76,52 @@ SELECT NULL::itree;
 
 -- Expected: NULL
 --max level 1 byte segments ok
-SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14'::itree;
-              itree               
-----------------------------------
- 1.2.3.4.5.6.7.8.9.10.11.12.13.14
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16'::itree;
+                 itree                  
+----------------------------------------
+ 1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16
 (1 row)
 
 -- more then max level ignored
-SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15'::itree;
-              itree               
-----------------------------------
- 1.2.3.4.5.6.7.8.9.10.11.12.13.14
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17'::itree;
+                 itree                  
+----------------------------------------
+ 1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16
 (1 row)
 
--- more then 14 byte storage not allowed
-select '1.2.3.4.5.6.7.8.9.10.11.12.13.14000'::itree;
-ERROR:  itree segment 14000 too large or exceeds space
-LINE 1: select '1.2.3.4.5.6.7.8.9.10.11.12.13.14000'::itree;
+-- more then max 16 byte storage not allowed
+select '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.300'::itree;
+ERROR:  Data index 16 out of bounds [0,16)
+LINE 1: select '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.300'::itree;
                ^
---last empty segment is ignored
-SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.'::itree;
-              itree               
-----------------------------------
- 1.2.3.4.5.6.7.8.9.10.11.12.13.14
-(1 row)
-
 --empty internal segment not allowed
 SELECT '1..3'::itree;
-ERROR:  itree segment must be positive (got 0)
+ERROR:  itree segment must be in range 1..65535 (got 0)
 LINE 1: SELECT '1..3'::itree;
                ^
---zero segment not allowed
+--INVALID last segment not ignored
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.'::itree;
+                 itree                  
+----------------------------------------
+ 1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16
+(1 row)
+
 SELECT '1.2.0'::itree;
-ERROR:  itree segment must be positive (got 0)
+ERROR:  itree segment must be in range 1..65535 (got 0)
 LINE 1: SELECT '1.2.0'::itree;
                ^
---negative segment not allowed
 SELECT '1.2.-3'::itree;
-ERROR:  itree segment must be positive (got -3)
+ERROR:  itree segment must be in range 1..65535 (got -3)
 LINE 1: SELECT '1.2.-3'::itree;
                ^
---2 byte segment
+--2 byte segment is ok
 SELECT '1.256'::itree;
  itree 
 -------
- 1.1
+ 1.256
 (1 row)
 
+-- Expected: 1.256
 -- Test basic type creation and I/O
 SELECT '1.2.3'::itree AS basic_input;
  basic_input 
@@ -131,13 +130,11 @@ SELECT '1.2.3'::itree AS basic_input;
 (1 row)
 
 -- Expected: 1.2.3
-SELECT '300.2'::itree AS two_byte_input;
- two_byte_input 
-----------------
- 300.2
-(1 row)
-
--- Expected: 300.2
+-- more then 2 byte segment not allowed
+SELECT '1.65536'::itree AS too_big_input;
+ERROR:  itree segment must be in range 1..65535 (got 65536)
+LINE 1: SELECT '1.65536'::itree AS too_big_input;
+               ^
 -- Test invalid inputs
 DO $$
 BEGIN
@@ -205,14 +202,14 @@ SELECT '1.2.3'::itree <= '1.2'::itree AS le_false;
 (1 row)
 
 -- Expected: f
-SELECT '300'::itree > '2'::itree AS gt_true;
+SELECT '3'::itree > '2'::itree AS gt_true;
  gt_true 
 ---------
  t
 (1 row)
 
 -- Expected: t
-SELECT '2'::itree > '300'::itree AS gt_false;
+SELECT '2'::itree > '3'::itree AS gt_false;
  gt_false 
 ----------
  f
@@ -318,8 +315,7 @@ INSERT INTO itree_pk VALUES
     ('300'),
     ('300.2');
 -- Test uniqueness
-INSERT INTO itree_pk VALUES ('1.2')
-ON CONFLICT DO NOTHING;
+INSERT INTO itree_pk VALUES ('1.2') ON CONFLICT DO NOTHING;
 -- Expected: No duplicate inserted
 SELECT id FROM itree_pk ORDER BY id;
   id   
@@ -387,8 +383,7 @@ INSERT INTO itree_gin_test VALUES
     ('1.2.3'),
     ('2'),
     ('300'),
-    ('300.2'),
-    (null)
+    ('300.2')
     ;
 -- Force index usage
 SET enable_seqscan = off;

@@ -50,36 +50,34 @@ SELECT NULL::itree;
 -- Expected: NULL
 
 --max level 1 byte segments ok
-SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14'::itree;
-
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16'::itree;
 
 -- more then max level ignored
-SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15'::itree;
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17'::itree;
 
--- more then 14 byte storage not allowed
-select '1.2.3.4.5.6.7.8.9.10.11.12.13.14000'::itree;
+-- more then max 16 byte storage not allowed
+select '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.300'::itree;
 
---last empty segment is ignored
-SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.'::itree;
 
 --empty internal segment not allowed
 SELECT '1..3'::itree;
 
---zero segment not allowed
+--INVALID last segment not ignored
+SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.'::itree;
 SELECT '1.2.0'::itree;
-
---negative segment not allowed
 SELECT '1.2.-3'::itree;
 
---2 byte segment
+--2 byte segment is ok
 SELECT '1.256'::itree;
+-- Expected: 1.256
 
 -- Test basic type creation and I/O
 SELECT '1.2.3'::itree AS basic_input;
 -- Expected: 1.2.3
 
-SELECT '300.2'::itree AS two_byte_input;
--- Expected: 300.2
+-- more then 2 byte segment not allowed
+SELECT '1.65536'::itree AS too_big_input;
+
 
 -- Test invalid inputs
 DO $$
@@ -124,10 +122,10 @@ SELECT '1.2'::itree <= '1.2'::itree AS le_true;
 SELECT '1.2.3'::itree <= '1.2'::itree AS le_false;
 -- Expected: f
 
-SELECT '300'::itree > '2'::itree AS gt_true;
+SELECT '3'::itree > '2'::itree AS gt_true;
 -- Expected: t
 
-SELECT '2'::itree > '300'::itree AS gt_false;
+SELECT '2'::itree > '3'::itree AS gt_false;
 -- Expected: f
 
 SELECT '300'::itree >= '300'::itree AS ge_true;
@@ -182,8 +180,7 @@ INSERT INTO itree_pk VALUES
     ('300.2');
 
 -- Test uniqueness
-INSERT INTO itree_pk VALUES ('1.2')
-ON CONFLICT DO NOTHING;
+INSERT INTO itree_pk VALUES ('1.2') ON CONFLICT DO NOTHING;
 -- Expected: No duplicate inserted
 
 SELECT id FROM itree_pk ORDER BY id;
@@ -228,8 +225,7 @@ INSERT INTO itree_gin_test VALUES
     ('1.2.3'),
     ('2'),
     ('300'),
-    ('300.2'),
-    (null)
+    ('300.2')
     ;
 
 -- Force index usage

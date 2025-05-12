@@ -1,37 +1,87 @@
 /**
  * Operations for the itree type.
  */
+#include <assert.h>
 #include "postgres.h"
 #include "fmgr.h"
 #include "utils/builtins.h"
 #include "itree.h"
 
+// Function to get the control bit associated with data[data_index]
+// The control bit for data[data_index] is stored at physical bit position 'data_index'
+// within the 16-bit field formed by control[0] and control[1].
+int get_control_bit(const itree* tree_instance, int data_index) {
+    // Validate data_index to ensure it's within the expected range (0-15)
+    if(data_index < 0 || data_index >= ITREE_MAX_LEVELS){
+        elog(ERROR, "Data index %d out of bounds [0,%d)", data_index, ITREE_MAX_LEVELS);
+    }
+
+    // The physical bit position in the 16-bit control space (0-15) is now simply data_index
+    int physical_bit_position = data_index;
+
+    // Determine which byte of the control array (control[0] or control[1]) holds this bit
+    int byte_array_index = physical_bit_position / 8; // Will be 0 for bits 0-7, 1 for bits 8-15
+
+    // Determine the bit position within that specific byte (0-7)
+    int bit_within_byte = physical_bit_position % 8;
+
+    // Access the correct byte
+    uint8_t target_byte = tree_instance->control[byte_array_index];
+
+    // Extract and return the bit
+    return (target_byte >> bit_within_byte) & 1;
+}
+
+// Function to set the control bit associated with data[data_index]
+// data_index ranges from 0 to 15.
+// bit_value should be 0 or 1.
+void set_control_bit(itree* tree_instance, int data_index, int bit_value) {
+    // Validate inputs
+    if(data_index < 0 || data_index >= ITREE_MAX_LEVELS){
+        elog(ERROR, "Data index %d out of bounds [0,%d)", data_index, ITREE_MAX_LEVELS);
+    }
+    if((bit_value != 0 && bit_value != 1)){
+        elog(ERROR, "itree control bit value must be 0 or 1");
+    }
+
+    int physical_bit_position = data_index;
+    int byte_array_index = physical_bit_position / 8;
+    int bit_within_byte = physical_bit_position % 8;
+
+    if (bit_value == 1) {
+        // Set the bit (turn it to 1)
+        tree_instance->control[byte_array_index] |= (1 << bit_within_byte);
+    } else {
+        // Clear the bit (turn it to 0)
+        tree_instance->control[byte_array_index] &= ~(1 << bit_within_byte);
+    }
+}
 
 /**
  * Get number of segments and extract them
  */
 int itree_get_segments(itree *tree, uint16_t *segments) {
-    int byte_pos = 0, seg_count = 0;
+    int seg_count = 0;
+    int byte_pos = 0;
 
-    memset(segments, 0, ITREE_MAX_LEVELS * sizeof(uint16_t));//just in case the caller has not initialized the array
+    while (byte_pos < ITREE_MAX_LEVELS) {
+        // End of itree: data byte is 0 and control bit is 1 (start of segment)
+        if (tree->data[byte_pos] == 0 && get_control_bit(tree, byte_pos))
+            break;
 
-    while (byte_pos < ITREE_MAX_LEVELS && tree->data[byte_pos] != 0) {
-        bool is_2byte = false;
-        if (byte_pos + 1 < ITREE_MAX_LEVELS) {
-            int shift = (byte_pos + 1 < 8) ? (7 - (byte_pos + 1)) : (15 - (byte_pos + 1));
-            uint8_t control = (byte_pos + 1 < 8) ? tree->control[0] : tree->control[1];
-            is_2byte = !((control >> shift) & 1);
+        // If this byte starts a new segment
+        if (get_control_bit(tree, byte_pos)) {
+            // Check if next byte is part of this segment (2-byte segment)
+            if (byte_pos + 1 < ITREE_MAX_LEVELS && !get_control_bit(tree, byte_pos + 1)) {
+                segments[seg_count++] = ((uint16_t)tree->data[byte_pos] << 8) | tree->data[byte_pos + 1];
+                byte_pos += 2;
+                continue;
+            } else {   // Single byte segment
+                segments[seg_count++] = tree->data[byte_pos];
+            }
         }
-
-        if (is_2byte && byte_pos + 1 < ITREE_MAX_LEVELS && tree->data[byte_pos + 1] != 0) {
-            segments[seg_count++] = (tree->data[byte_pos] << 8) | tree->data[byte_pos + 1];
-            byte_pos += 2;
-        } else {
-            segments[seg_count++] = tree->data[byte_pos];
-            byte_pos++;
-        }
+        byte_pos++;
     }
-
     return seg_count;
 }
 
@@ -112,17 +162,13 @@ static int int_itree_cmp(itree *a, itree *b) {
 
  /**
  * Compare two itree values for equality.
- * This works with the assumption that the data array is zero-padded.
  */
 PG_FUNCTION_INFO_V1(itree_eq);
 Datum itree_eq(PG_FUNCTION_ARGS){
-
     itree *a = PG_GETARG_ITREE(0);
     itree *b = PG_GETARG_ITREE(1);
-    int i;
 
-    // Compare the entire itree structures (data + control)
-    if (memcmp(a, b, sizeof(itree)) == 0) {
+    if (int_itree_cmp(a, b) == 0) {
         PG_RETURN_BOOL(true);
     } else {
         PG_RETURN_BOOL(false);
@@ -209,11 +255,3 @@ Datum itree_additree(PG_FUNCTION_ARGS) {
 
     PG_RETURN_ITREE(result);
 }
-
-/* PG_FUNCTION_INFO_V1(itree_addint);
-Datum itree_addint(PG_FUNCTION_ARGS);
-
-
-PG_FUNCTION_INFO_V1(itree_intadd);
-Datum itree_intadd(PG_FUNCTION_ARGS);
- */

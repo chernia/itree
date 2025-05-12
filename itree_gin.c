@@ -22,6 +22,7 @@ Datum itree_extract_value(PG_FUNCTION_ARGS) {
     itree *tree = PG_GETARG_ITREE(0);
     int32 *nkeys = (int32 *)PG_GETARG_POINTER(1);
     bool **nullFlags = (bool **)PG_GETARG_POINTER(2);
+    Datum *keys = NULL;
 
     // Handle NULL value
     if (tree == NULL) {
@@ -30,7 +31,6 @@ Datum itree_extract_value(PG_FUNCTION_ARGS) {
         PG_RETURN_POINTER(NULL);
     }
 
-    Datum *keys = NULL;
     uint16_t segments[ITREE_MAX_LEVELS] = {0};
     int seg_count = itree_get_segments(tree, segments);
     int i, byte_pos;

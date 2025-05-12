@@ -4,13 +4,17 @@
 #include "postgres.h"
 #include "fmgr.h"
 
+
+
+#define ITREE_MAX_LEVELS 16  // Max 16 1-byte segments
+#define ITREE_SIZE ITREE_MAX_LEVELS + 2 // 2 bytes for control
+#define ITREE_MAX_SEGMENT_LENGTH 2  // Max 2 bytes for segment length
+
 typedef struct {
-    uint8_t control[2];  
-    uint8_t data[14];
+    uint8_t control[2];  //all control bits used for segments
+    uint8_t data[ITREE_MAX_LEVELS]; // 16 bytes for segments
 } itree;
 
-#define ITREE_SIZE 16
-#define ITREE_MAX_LEVELS 14  // Max 14 1-byte segments
 
 #define DatumGetITree(X) ((itree *)DatumGetPointer(X))
 #define ITreeGetDatum(X) PointerGetDatum(X)
@@ -42,6 +46,8 @@ PGDLLEXPORT Datum itree_addint(PG_FUNCTION_ARGS);
 PGDLLEXPORT Datum itree_intadd(PG_FUNCTION_ARGS);
 
 //helper functions
+void set_control_bit(itree* tree_instance, int data_index, int bit_value);
+int get_control_bit(const itree* tree_instance, int data_index);
 int itree_get_segments(itree *tree, uint16_t *segments);
 
 

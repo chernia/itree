@@ -37,51 +37,43 @@ Datum itree_in(PG_FUNCTION_ARGS) {
 
     itree *result = (itree *)palloc(ITREE_SIZE);
     int levels = 0, byte_pos = 0;
-    char *ptr;
-    
-    int32 max_levels = ITREE_MAX_LEVELS; //int32 typmod = PG_GETARG_INT32(2) is always -1 despite what typmod_in function returns
+    char *ptr = input;
 
-    
     result->control[0] = 0xFF;
     result->control[1] = 0xFF;
     memset(result->data, 0, sizeof(result->data));
 
-    ptr = input;
-
-    while (levels < max_levels && byte_pos < ITREE_MAX_LEVELS) {
-        long val = atol(ptr);
-        if (val <= 0) {
+    while (levels < ITREE_MAX_LEVELS && byte_pos < ITREE_MAX_LEVELS) {
+        long val = strtol(ptr, &ptr, 10);//get the value and move the pointer
+        if (val <= 0 || val > 65535) {
             ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                            errmsg("itree segment must be positive (got %ld)", val)));
+                            errmsg("itree segment must be in range 1..65535 (got %ld)", val)));
         }
+        elog(DEBUG1, "itree segment %ld", val);
+
+         // Set the control bit for this segment
+        set_control_bit(result, byte_pos, 1);
 
         if (val <= 255) {
             result->data[byte_pos++] = (uint8_t)val;
-            levels++;
-        } else if (val <= 65535 && byte_pos + 1 < sizeof(result->data)) {
-            result->data[byte_pos++] = (uint8_t)(val >> 8);
-            result->data[byte_pos] = (uint8_t)(val & 0xFF);
-            if (byte_pos < 8) {
-                result->control[0] &= ~(1 << (7 - byte_pos));
-            } else {
-                result->control[1] &= ~(1 << (15 - byte_pos));
-            }
-            byte_pos++;
-            levels++;
-        } else {
-            ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                            errmsg("itree segment %ld too large or exceeds space", val)));
+        } else  {
+            // 2-byte segment: store high then low byte
+            result->data[byte_pos] = (uint8_t)(val >> 8);
+            // Set control bit for the second byte to 0 (continuation)
+            set_control_bit(result, byte_pos + 1, 0);
+            result->data[byte_pos + 1] = (uint8_t)(val & 0xFF);
+            byte_pos += 2;
         }
+        levels++;
 
-        ptr = strchr(ptr, '.');
-        if (!ptr) break;
-        ptr++;
-        if (!*ptr) break;
+        // Advance ptr to next segment separator, if any
+        if (*ptr == '.') ptr++;
+        else break;
     }
-
-    if (levels > max_levels) {
+              
+    if (levels > ITREE_MAX_LEVELS) {
         ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                        errmsg("itree exceeds max levels (%d)", max_levels)));
+                        errmsg("itree exceeds max levels (%d)", ITREE_MAX_LEVELS)));
     }
 
     PG_RETURN_ITREE(result);
@@ -97,30 +89,17 @@ Datum itree_out(PG_FUNCTION_ARGS) {
 
     itree *tree = PG_GETARG_ITREE(0);
     char buffer[ITREE_MAX_LEVELS * 6];
-    char *result;
-    int len = 0, bit_pos = 0;
+    int len = 0;
+    uint16_t segments[ITREE_MAX_LEVELS];
+    int seg_count = itree_get_segments(tree, segments);
 
-    while (bit_pos < ITREE_MAX_LEVELS && tree->data[bit_pos] != 0) {
-        bool is_2byte = false;
-        if (bit_pos + 1 < ITREE_MAX_LEVELS) {
-            int shift = (bit_pos + 1 < 8) ? (7 - (bit_pos + 1)) : (15 - (bit_pos + 1));
-            uint8_t control = (bit_pos + 1 < 8) ? tree->control[0] : tree->control[1];
-            is_2byte = !((control >> shift) & 1);
-        }
-
-        if (len > 0) buffer[len++] = '.';
-
-        if (is_2byte && bit_pos + 1 < ITREE_MAX_LEVELS && tree->data[bit_pos + 1] != 0) {
-            uint16_t val = (tree->data[bit_pos] << 8) | tree->data[bit_pos + 1];
-            len += sprintf(buffer + len, "%u", val);
-            bit_pos += 2;
-        } else {
-            len += sprintf(buffer + len, "%u", tree->data[bit_pos]);
-            bit_pos++;
-        }
+    for (int i = 0; i < seg_count; i++) {
+        if (i > 0) buffer[len++] = '.';
+        len += sprintf(buffer + len, "%u", segments[i]);
     }
 
-    result = palloc(len + 1);
+    char *result = palloc(len + 1);
+
     memcpy(result, buffer, len);
     result[len] = '\0';
     PG_RETURN_CSTRING(result);

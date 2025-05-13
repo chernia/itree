@@ -99,13 +99,14 @@ SELECT '1..3'::itree;
 ERROR:  itree segment must be in range 1..65535 (got 0)
 LINE 1: SELECT '1..3'::itree;
                ^
---INVALID last segment not ignored
+--empty last segment ignored
 SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.'::itree;
                  itree                  
 ----------------------------------------
  1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16
 (1 row)
 
+--INVALID last segment not ignored
 SELECT '1.2.0'::itree;
 ERROR:  itree segment must be in range 1..65535 (got 0)
 LINE 1: SELECT '1.2.0'::itree;
@@ -115,10 +116,10 @@ ERROR:  itree segment must be in range 1..65535 (got -3)
 LINE 1: SELECT '1.2.-3'::itree;
                ^
 --2 byte segment is ok
-SELECT '1.256'::itree;
- itree 
--------
- 1.256
+SELECT '256'::itree as two_byte_segment;
+ two_byte_segment 
+------------------
+ 256
 (1 row)
 
 -- Expected: 1.256
@@ -135,6 +136,7 @@ SELECT '1.65536'::itree AS too_big_input;
 ERROR:  itree segment must be in range 1..65535 (got 65536)
 LINE 1: SELECT '1.65536'::itree AS too_big_input;
                ^
+-- Expected: ERROR:  itree segment must be in range 1..65535 (got 65536)
 -- Test invalid inputs
 DO $$
 BEGIN

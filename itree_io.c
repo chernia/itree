@@ -49,9 +49,8 @@ Datum itree_in(PG_FUNCTION_ARGS) {
             ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                             errmsg("itree segment must be in range 1..65535 (got %ld)", val)));
         }
-        elog(DEBUG1, "itree segment %ld", val);
 
-         // Set the control bit for this segment
+         // defensive:  start of a new segment - set control bit to 1
         set_control_bit(result, byte_pos, 1);
 
         if (val <= 255) {
@@ -82,7 +81,6 @@ Datum itree_in(PG_FUNCTION_ARGS) {
 /** Convert an itree Datum to cstring */
 PG_FUNCTION_INFO_V1(itree_out);
 Datum itree_out(PG_FUNCTION_ARGS) {
-     // Check for NULL input
     if (PG_ARGISNULL(0)) {
         PG_RETURN_CSTRING(pstrdup("NULL"));
     }
@@ -90,7 +88,7 @@ Datum itree_out(PG_FUNCTION_ARGS) {
     itree *tree = PG_GETARG_ITREE(0);
     char buffer[ITREE_MAX_LEVELS * 6];
     int len = 0;
-    uint16_t segments[ITREE_MAX_LEVELS];
+    uint16_t segments[ITREE_MAX_LEVELS] = {0};
     int seg_count = itree_get_segments(tree, segments);
 
     for (int i = 0; i < seg_count; i++) {

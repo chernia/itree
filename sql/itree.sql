@@ -62,13 +62,15 @@ select '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.300'::itree;
 --empty internal segment not allowed
 SELECT '1..3'::itree;
 
---INVALID last segment not ignored
+--empty last segment ignored
 SELECT '1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.'::itree;
+
+--INVALID last segment not ignored
 SELECT '1.2.0'::itree;
 SELECT '1.2.-3'::itree;
 
 --2 byte segment is ok
-SELECT '1.256'::itree;
+SELECT '256'::itree as two_byte_segment;
 -- Expected: 1.256
 
 -- Test basic type creation and I/O
@@ -77,7 +79,7 @@ SELECT '1.2.3'::itree AS basic_input;
 
 -- more then 2 byte segment not allowed
 SELECT '1.65536'::itree AS too_big_input;
-
+-- Expected: ERROR:  itree segment must be in range 1..65535 (got 65536)
 
 -- Test invalid inputs
 DO $$

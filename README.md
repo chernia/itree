@@ -1,5 +1,5 @@
 # itree 
-`itree` is inspired by the great extension [LTREE](https://www.postgresql.org/docs/current/ltree.html), but is limited to positive integer segment values with a fixed 16 byte storage.
+`itree` is inspired by the great extension [LTREE](https://www.postgresql.org/docs/current/ltree.html), but is limited to positive integer segment values with a fixed 18 byte storage and max 2 byte segment values.
 
 The `itree` complements `ltree` and can serve as an ID of a hierarchical entity, where ltree can serve as a label path.
 ## Features
@@ -18,9 +18,9 @@ This Postgres extension implements a data type `itree` for representing a hierar
 | ilevel(itree) -> integer    | number of levels         | ilevel('1.2.3') -> 3  |
 
 ### Data Structure
-`itree` uses a fixed length 16 bytes with 2 control and 14 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.
+`itree` uses a fixed length 18 bytes with 2 control and 16 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.
 
-Control bits 3-15 of 1 indicate a new segment, while 0 means the byte is added to the previous segment. Segment value `0` is disallowed as it is interpreted as an end of the itree when control bit is 1. 
+Control bits 0-15 of 1 indicate a new segment, while `0` means the data byte is added to the previous segment. Segment value `0` is disallowed as it is interpreted as an end of the itree when control bit is 1. 
 
 ### Indexes
 - B-tree over itree: <, <=, =, >=, >

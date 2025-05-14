@@ -189,13 +189,12 @@ CREATE OPERATOR || (
 );
 
 
-/* CREATE FUNCTION itree_addint(itree,text)
-RETURNS itree
-AS 'MODULE_PATHNAME'
-LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+create function subitree(itree, int, int)
+returns itree
+as 'MODULE_PATHNAME', 'itree_subitree'
+language c strict immutable parallel safe;
 
-CREATE FUNCTION itree_intadd(text,itree)
-RETURNS itree
-AS 'MODULE_PATHNAME'
-LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
- */
+create function subpath(itree, int, int)
+returns itree
+as 'MODULE_PATHNAME', 'itree_subpath'
+language c strict immutable parallel safe;

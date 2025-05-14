@@ -49,6 +49,7 @@ PGDLLEXPORT Datum itree_intadd(PG_FUNCTION_ARGS);
 void set_control_bit(itree* tree_instance, int data_index, int bit_value);
 int get_control_bit(const itree* tree_instance, int data_index);
 int itree_get_segments(itree *tree, uint16_t *segments);
-
+itree *init_itree();
+itree *create_itree_from_segments(const uint16_t *segments);
 
 #endif

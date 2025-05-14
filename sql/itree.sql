@@ -167,6 +167,58 @@ SELECT ilevel('1.2.3'::itree) AS level_3;
 SELECT '1.2.3'::itree || '4.5.6'::itree AS concat_result;
 -- Expected: 1.2.3.4.5.6
 
+-- subitree
+-- Test extracting a single segment
+SELECT subitree('1.2.3.4'::itree, 1, 2) AS subitree_single_segment;
+-- Expected: 2
+
+-- Test extracting multiple segments
+SELECT subitree('1.2.3.4'::itree, 1, 3) AS subitree_multiple_segments;
+-- Expected: 2.3
+
+-- Test extracting the entire itree
+SELECT subitree('1.2.3.4'::itree, 0, 4) AS subitree_full;
+-- Expected: 1.2.3.4
+
+-- Test out-of-bounds start
+SELECT subitree('1.2.3.4'::itree, 5, 6) AS subitree_out_of_bounds_start;
+-- Expected: ERROR (subpath out of bounds)
+
+-- Test out-of-bounds end
+SELECT subitree('1.2.3.4'::itree, 2, 5) AS subitree_out_of_bounds_end;
+-- Expected: ERROR (subpath out of bounds)
+
+--subpath
+-- Parent
+SELECT subpath('1.2.3.4.5'::itree, 0, -1) AS parent;
+-- Expected: 1.2.3.4
+
+-- Test extracting a subpath with positive offset and length
+SELECT subpath('1.2.3.4.5'::itree, 0, 2) AS subpath_positive_offset_len;
+-- Expected: 1.2
+
+-- Test extracting a subpath with negative offset
+SELECT subpath('1.2.3.4.5'::itree, -2, 2) AS subpath_negative_offset;
+-- Expected: 4.5
+
+-- Test extracting a subpath with negative length
+SELECT subpath('1.2.3.4.5'::itree, 0, -1) AS subpath_negative_length;
+-- Expected: 1.2.3.4
+
+-- Test extracting the entire itree
+SELECT subpath('1.2.3.4.5'::itree, 0, 5) AS subpath_full;
+-- Expected: 1.2.3.4.5
+
+-- Test out-of-bounds offset
+SELECT subpath('1.2.3.4.5'::itree, 6, 2) AS subpath_out_of_bounds_offset;
+-- Expected: ERROR (subpath out of bounds)
+
+-- Test out-of-bounds length
+SELECT subpath('1.2.3.4.5'::itree, 3, 3) AS subpath_out_of_bounds_length;
+-- Expected: ERROR (subpath out of bounds)
+
+
+-- INDEX TESTS
 drop table if exists itree_pk;
 -- Test B-tree index as primary key
 CREATE TABLE itree_pk (

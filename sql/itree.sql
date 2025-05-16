@@ -167,6 +167,12 @@ SELECT ilevel('1.2.3'::itree) AS level_3;
 SELECT '1.2.3'::itree || '4.5.6'::itree AS concat_result;
 -- Expected: 1.2.3.4.5.6
 
+SELECT '1.2.3'::itree || 4 AS concat_int_result;
+-- Expected: 1.2.3.4
+
+SELECT '1.2.3'::itree || '4.5' AS concat_text_result;
+-- Expected: 1.2.3.4.5
+
 -- subitree
 -- Test extracting a single segment
 SELECT subitree('1.2.3.4'::itree, 1, 2) AS subitree_single_segment;

@@ -191,10 +191,10 @@ CREATE OPERATOR || (
 
 create function subitree(itree, int, int)
 returns itree
-as 'MODULE_PATHNAME', 'itree_subitree'
+as 'MODULE_PATHNAME'
 language c strict immutable parallel safe;
 
 create function subpath(itree, int, int)
 returns itree
-as 'MODULE_PATHNAME', 'itree_subpath'
+as 'MODULE_PATHNAME'
 language c strict immutable parallel safe;

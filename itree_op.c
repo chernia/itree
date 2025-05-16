@@ -301,8 +301,8 @@ Datum itree_additree(PG_FUNCTION_ARGS) {
  * Returns subpath of itree from position start to position end-1 (counting from 0).
  * subitree('1.2.3.4', 1, 2) → 2
  */
-PG_FUNCTION_INFO_V1(itree_subitree);
-Datum itree_subitree(PG_FUNCTION_ARGS) {
+PG_FUNCTION_INFO_V1(subitree);
+Datum subitree(PG_FUNCTION_ARGS) {
     itree *tree = PG_GETARG_ITREE(0);
     int start = PG_GETARG_INT32(1);
     int end = PG_GETARG_INT32(2);
@@ -340,8 +340,8 @@ Datum itree_subitree(PG_FUNCTION_ARGS) {
  * subpath('1.2.3.4.5', 0, -1) → 1.2.3.4 
  * 
  */
-PG_FUNCTION_INFO_V1(itree_subpath);
-Datum itree_subpath(PG_FUNCTION_ARGS) {
+PG_FUNCTION_INFO_V1(subpath);
+Datum subpath(PG_FUNCTION_ARGS) {
     itree *tree = PG_GETARG_ITREE(0);
     int offset = PG_GETARG_INT32(1);
     int len = PG_GETARG_INT32(2);

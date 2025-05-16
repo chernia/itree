@@ -295,6 +295,64 @@ Datum itree_additree(PG_FUNCTION_ARGS) {
     PG_RETURN_ITREE(result);
 }
 
+
+/**
+ * Concatenate an itree with a single integer.
+ * This function creates a new itree by appending the integer to the existing itree.
+ */
+PG_FUNCTION_INFO_V1(itree_addint);
+Datum itree_addint(PG_FUNCTION_ARGS) {
+    itree *tree = PG_GETARG_ITREE(0);
+    int32_t value = PG_GETARG_INT32(1);
+    uint16_t segments[ITREE_MAX_LEVELS] = {0};
+    int seg_count = itree_get_segments(tree, segments);
+
+    if (seg_count >= ITREE_MAX_LEVELS) {
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                        errmsg("itree concatenation exceeds maximum levels")));
+    }
+
+    segments[seg_count] = (uint16_t)value;
+
+    itree *result = create_itree_from_segments(segments);
+
+    PG_RETURN_ITREE(result);
+}
+
+/**
+ * Concatenate an itree with a text value.
+ * This function creates a new itree by appending the segments of the text value to the existing itree.
+ */
+PG_FUNCTION_INFO_V1(itree_addtext);
+Datum itree_addtext(PG_FUNCTION_ARGS) {
+    itree *tree = PG_GETARG_ITREE(0);
+    text *text_value = PG_GETARG_TEXT_P(1);
+    uint16_t segments[ITREE_MAX_LEVELS] = {0};
+    int seg_count = itree_get_segments(tree, segments);
+
+    char *cstring_value = text_to_cstring(text_value);
+    itree *text_itree = (itree *) DatumGetPointer(DirectFunctionCall1(itree_in, CStringGetDatum(cstring_value)));
+
+    uint16_t result_segments[ITREE_MAX_LEVELS] = {0};
+    int text_count = itree_get_segments(text_itree, result_segments);
+
+
+    if ( seg_count + text_count > ITREE_MAX_LEVELS) {
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                        errmsg("itree concatenation exceeds maximum levels")));
+    }
+
+    // Copy segments from the original itree and the text itree to the result
+    memcpy(result_segments, segments, sizeof(uint16_t) * seg_count);
+    memcpy(result_segments + seg_count, result_segments, sizeof(uint16_t) * text_count);
+
+    itree *result = create_itree_from_segments(result_segments);
+
+    PG_RETURN_ITREE(result);
+}
+
+
+
 /**
  * subitree ( itree, start integer, end integer ) → itree
  * 

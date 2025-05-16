@@ -11,6 +11,8 @@ This Postgres extension implements a data type `itree` for representing a hierar
 | itree @> itree → boolean | Is left argument an ancestor of right (or equal as ltree)  |
 | itree <@ itree → boolean | Is left argument a descendant of right (or equal as ltree) |
 | itree \|\| itree -> itree  | concatenate 2 itree values|
+| itree \|\| int -> itree  | concatenate itree and an int |
+| itree \|\| text -> itree  | concatenate itree and a text tree|
 
 ### Functions
 | Function                    | Description              | Example               |

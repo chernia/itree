@@ -184,9 +184,32 @@ LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
 CREATE OPERATOR || (
         LEFTARG = itree,
-	RIGHTARG = itree,
+	    RIGHTARG = itree,
 	PROCEDURE = itree_additree
 );
+
+CREATE FUNCTION itree_addint(itree,int)
+RETURNS itree
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE OPERATOR || (
+        LEFTARG = itree,
+	    RIGHTARG = int,
+	PROCEDURE = itree_addint
+);
+
+CREATE FUNCTION itree_addtext(itree,text)
+RETURNS itree
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE OPERATOR || (
+        LEFTARG = itree,
+	    RIGHTARG = text,
+	PROCEDURE = itree_addtext
+);
+
 
 
 create function subitree(itree, int, int)

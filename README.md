@@ -1,11 +1,14 @@
 # itree 
-`itree` is inspired by the great extension [LTREE](https://www.postgresql.org/docs/current/ltree.html), but is limited to positive integer segment values with a fixed 18 byte storage and max 2 byte segment values.
+ Postgres extension for an integer hierarchical data type  like: `1.2.3.500`, for up to 16 segments with positive int values >= 1 and <= 65535, inspired by the great extension [LTREE](https://www.postgresql.org/docs/current/ltree.html).
 
-The `itree` complements `ltree` and can serve as an ID of a hierarchical entity, where ltree can serve as a label path.
-## Features
-This Postgres extension implements a data type `itree` for representing a hierarchical integer tree structure like: `1.1.30.65535`, where each segment is a positive int >= 1 and <= 65535. Some basic operators are provided initially, more can be added as needed.
+ The main use case for `itree` is keys of ontologies or any hierarchical reference data.
+ 
+ TODO: add an example of `Type` for Single Table Inheritance pattern.
+  
+  
+## Operators
+Some basic operators are provided initially, more are added as needed.
 
-### Operators
 | Operator  | Description                                                       |
 |-----------|-------------------------------------------------------------------|
 | itree @> itree → boolean | Is left argument an ancestor of right (or equal as ltree)  |
@@ -14,29 +17,32 @@ This Postgres extension implements a data type `itree` for representing a hierar
 | itree \|\| int -> itree  | concatenate itree and an int |
 | itree \|\| text -> itree  | concatenate itree and a text tree|
 
-### Functions
+## Functions
 | Function                    | Description              | Example               |
 |-----------------------------|--------------------------|-----------------------|
 | ilevel(itree) -> integer    | number of levels         | ilevel('1.2.3') -> 3  |
 | subpath ( itree, offset integer, len integer ) → itree | Returns subpath of itree starting at position offset, with length len. | subpath('1.2.3.4.5', 0, 2) → 1.2 |
 | subitree ( itree, start integer, end integer ) → itree | Returns subpath of itree from position start to position end-1 (counting from 0).| subitree('1.2.3.4', 1, 2) → 2 |
 
-### Data Structure
+## Data Structure
 `itree` uses a fixed length 18 bytes with 2 control and 16 data bytes, which hold segments with variable length  from 1 to 2 bytes per segment.
 
-Control bits 0-15 of 1 indicate a new segment, while `0` means the data byte is added to the previous segment. Segment value `0` is disallowed as it is interpreted as an end of the itree when control bit is 1. 
+Control bits 0-15 with a value of `1` indicate a new segment in the relevant data byte, while `0` means the data byte is added to the previous segment.
 
-### Indexes
+Segment value `0` is disallowed as it is interpreted as an end of the itree when its control bit is 1. 
+
+## Indexes
 - B-tree over itree: <, <=, =, >=, >
 - GIN index over(itree_gin_ops opclass): <, <=, =, >=, > <@, @> 
+- TODO: GiST and compare performance with GIN using high and low cardinality
 
 Example of creating a GIN index:
 ```sql
-CREATE TABLE ref_data (id itree. label text, label_path ltree);
+CREATE TABLE reference_data (id itree, label text, label_path ltree);
 
-CREATE TABLE entity(id uuid, reference_id itree references ref_data(id));
+CREATE TABLE entity(id uuid, reference_id itree references reference_data(id));
 
-CREATE INDEX itree_gin_idx ON itree_gin_test USING GIN (ref_id itree_gin_ops);
+CREATE INDEX itree_gin_idx ON entity USING GIN (reference_id itree_gin_ops);
 ```
 
 # Installation
@@ -49,7 +55,7 @@ and run with:
 `docker-compose up -d` 
 
 # Contributing
-For hacking ITREE you need to build Postgres from source:
+For hacking `itree` you need to build Postgres from source:
 
 ## 1.Install Postgres
 1. Download Postgres source  

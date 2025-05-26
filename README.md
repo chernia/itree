@@ -48,10 +48,14 @@ CREATE INDEX itree_gin_idx ON entity USING GIN (reference_id itree_gin_ops);
 Test python/sqlalchemy support:
 1.`uv sync`
 2. `source .venv/bin/activate`
-2. `pytest -s ./test.py`
+2. `pytest -s test.py`
 
-To use `itree` with SQLModel/SQLAlchemy:
+You can use `itree` with SQLModel/SQLAlchemy similar to `Ltree` fround in `sqlaclhemy-utils`:
 ```python
+from sqlmodel import Column, Field, SQLModel
+from sqlalchemy_utils import Ltree, LtreeType
+from app.util.itree import ITree, ITreeType
+
 class Entity(SQLModel, table=True):
     """A test class to check database connectivity and extensions support."""
     model_config = ConfigDict(arbitrary_types_allowed=True)

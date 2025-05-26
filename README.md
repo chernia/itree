@@ -38,7 +38,29 @@ CREATE TABLE entity(id uuid, reference_id itree references ref_data(id));
 
 CREATE INDEX itree_gin_idx ON itree_gin_test USING GIN (ref_id itree_gin_ops);
 ```
+# Python
+Test python/sqlalchemy support:
+1.`uv sync`
+2. `source .venv/bin/activate`
+2. `pytest -s ./test.py`
 
+To use `itree` with SQLModel/SQLAlchemy:
+```python
+class Entity(SQLModel, table=True):
+    """A test class to check database connectivity and extensions support."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    id: uuid.UUID = Field(default_factory=uuid7, primary_key=True)
+    path: Ltree = Field(sa_column=Column(LtreeType, nullable=False))
+    ipath: ITree = Field(sa_column=Column(ITreeType, nullable=False))
+
+...
+e = Entity(
+            path= Ltree('Test.Ltree.Support'),
+            ipath= ITree('1.2.3'),
+        )
+db.add(e)
+db.commit()
+```  
 # Installation
 ## Dockerfile
 1. Edit the sample Dockerfile and build it with docker:  

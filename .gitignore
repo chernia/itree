@@ -3,6 +3,7 @@
 /results/
 /tmp_check/
 
+*.pyc
 *.dylib
 *.o
 *.so

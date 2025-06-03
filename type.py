@@ -1,8 +1,10 @@
 """Python/SQLAlchemy support for Postgres itree datatype"""
+from typing import Annotated
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql.base import PGTypeCompiler, ischema_names
 from sqlalchemy.sql import expression
 from sqlalchemy.types import Concatenable, UserDefinedType
+from pydantic import AfterValidator, PlainSerializer, WithJsonSchema
 
 
 class ITree:
@@ -225,9 +227,16 @@ class ITreeType(Concatenable, UserDefinedType):
         return process
 
     def literal_processor(self, dialect):
+        # def process(value):
+        #     value = value.replace("'", "''")
+        #     return f"'{value}'"
+        # return process
         def process(value):
-            value = value.replace("'", "''")
-            return f"'{value}'"
+            # If value is already a string, just quote it
+            if isinstance(value, str):
+                return f"'{value}'"
+            # If value is ITree, use its string representation
+            return f"'{str(value)}'"
         return process
 
     __visit_name__ = 'ITREE'
@@ -241,3 +250,19 @@ def visit_ITREE(self, type_, **kw):
 
 ischema_names['itree'] = ITreeType
 PGTypeCompiler.visit_ITREE = visit_ITREE
+
+# Define Pydantic-compatible ITree type
+ITreePydantic = Annotated[
+    ITree,
+    AfterValidator(lambda v: v if isinstance(v, ITree) else ITree(v)),
+    PlainSerializer(lambda x: x.path, return_type=str),
+    WithJsonSchema(
+        {
+            'type': 'string',
+            'pattern': r'^\d+(\.\d+)*$',
+            'description': 'ITree path as a dot-separated string of integers (e.g., "1.2.3")',
+            'examples': ['1.2.3', '1', '1.2.3.4']
+        },
+        mode='serialization'
+    )
+]

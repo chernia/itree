@@ -1,9 +1,12 @@
+import os
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError
 from itree.type import ITree
+from dotenv import load_dotenv
+load_dotenv()
 
-DATABASE_URL = "postgresql+psycopg://api:secret@localhost:5432/app"
+DATABASE_URL = os.getenv('DATABASE_URL')
 
 engine = create_engine(DATABASE_URL, echo=True, future=True)
 
@@ -11,6 +14,7 @@ def test_itree_db_support() -> bool:
     """Check if the database supports itree."""
     try:
         with engine.connect() as connection:
+            connection.execute(text("CREATE EXTENSION ITREE;"))
             result = connection.execute(text("SELECT '1.2.3.4'::itree;"))
             value = result.scalar()
             assert value == '1.2.3.4'

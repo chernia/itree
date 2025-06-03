@@ -50,6 +50,15 @@ CREATE FUNCTION itree_gt(itree, itree) RETURNS bool
 CREATE FUNCTION itree_cmp(itree, itree) RETURNS int4
     AS 'MODULE_PATHNAME', 'itree_cmp'
     LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION itree_ne(itree, itree) RETURNS boolean AS $$
+    SELECT NOT itree_eq($1, $2);
+$$ LANGUAGE SQL IMMUTABLE;
+
+CREATE OPERATOR <> (
+    LEFTARG = itree,
+    RIGHTARG = itree,
+    PROCEDURE = itree_ne
+);
 
 CREATE OPERATOR < (
     LEFTARG = itree,

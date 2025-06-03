@@ -219,6 +219,18 @@ Datum itree_eq(PG_FUNCTION_ARGS){
     }
 }
 
+PG_FUNCTION_INFO_V1(itree_ne);
+Datum itree_ne(PG_FUNCTION_ARGS){
+    itree *a = PG_GETARG_ITREE(0);
+    itree *b = PG_GETARG_ITREE(1);
+
+    if (int_itree_cmp(a, b) == 0) {
+        PG_RETURN_BOOL(false);
+    } else {
+        PG_RETURN_BOOL(true);
+    }
+}
+
 
 PG_FUNCTION_INFO_V1(itree_cmp);
 Datum itree_cmp(PG_FUNCTION_ARGS) {

@@ -76,8 +76,8 @@ db.commit()
 1. Edit the sample Dockerfile and build it with docker:  
 `docker build -t postgres-itree .`  
 and run with:
-`docker run -d --name postgres-itree-container -e POSTGRES_PASSWORD=mysecretpassword -p 5432:5432 postgres-itree`
-2. or modify and use the sample `docker-compose.yml`:
+`docker run -d --name postgres-itree-standalone -e POSTGRES_PASSWORD=secret -p 5432:5432 postgres-itree`
+2. or modify `.env` and use the sample `docker-compose.yml`:
 `docker-compose up -d` 
 
 # Contributing
@@ -98,8 +98,8 @@ cd postgres
 
 4. Build  
 ```bash
-make world-bin
-sudo make install-world-bin
+make
+sudo make install
 ```
 
 5. Init Postgres  

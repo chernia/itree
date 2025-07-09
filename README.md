@@ -136,7 +136,7 @@ make install
 ## 3.Debug
 ### VSCODE
 
-1. .vscode/launch.json
+1. .vscode/launch.json linux
 ```json
 {
     "version": "0.2.0",
@@ -158,8 +158,38 @@ make install
     ]
 }
 ```
-
-2. Get the backend process id of the `psql` session
+2. .vscode/launch.json macos
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach to PostgreSQL Backend",
+            "type": "cppdbg",
+            "request": "attach",
+            "program": "/usr/local/pgsql/bin/postgres",
+            "processId": "${command:pickProcess}",
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for lldb",
+                    "text": "settings set target.inline-breakpoint-strategy always",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Break on itree_in function",
+                    "text": "breakpoint set --name itree_in",
+                    "ignoreFailures": true
+                }
+            ],
+            "osx": {
+                "MIMode": "lldb"
+            }
+        }
+    ]
+}
+```
+3. Get the backend process id of the `psql` session
  ```sql
 CREATE EXTENSION itree;
 SELECT pg_backend_pid();
